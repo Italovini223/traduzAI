@@ -1,0 +1,301 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══ APP (Tenant) ═══
+
+model Store {
+  id                Int       @id @default(autoincrement())
+  nuvemshopId       String    @unique
+  name              String?
+  domain            String?
+  email             String?
+  accessToken       String?
+  plan              String    @default("starter")
+  trialEndsAt       DateTime?
+  uninstalledAt     DateTime? // setado pelo webhook app/uninstalled (null = app instalado)
+  stripeCustomerId  String?
+  partnerId         String?
+  partnerName       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  subscription      Subscription?
+  profile           StoreProfile?
+  termsAcceptances  TermsAcceptance[]
+  supportTickets    SupportTicket[]
+  translationConfig StoreTranslationConfig?
+  localeRules       StoreLocaleRule[]
+  @@map("stores")
+}
+
+model StoreProfile {
+  id        Int      @id @default(autoincrement())
+  storeId   Int      @unique
+  store     Store    @relation(fields: [storeId], references: [id])
+  data      Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("store_profiles")
+}
+
+model Subscription {
+  id                    Int       @id @default(autoincrement())
+  storeId               Int       @unique
+  store                 Store     @relation(fields: [storeId], references: [id])
+  stripeSubscriptionId  String?
+  status                String    @default("none")
+  planKey               String?
+  billingInterval       String?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  cancelAtPeriodEnd     Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id               Int      @id @default(autoincrement())
+  storeId          Int
+  stripeInvoiceId  String   @unique
+  amountPaid       Float
+  currency         String   @default("brl")
+  status           String
+  invoiceUrl       String?
+  invoicePdf       String?
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  createdAt        DateTime @default(now())
+  @@map("invoices")
+}
+
+model TermsVersion {
+  id          Int       @id @default(autoincrement())
+  version     String
+  title       String
+  content     String
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  acceptances TermsAcceptance[]
+  @@map("terms_versions")
+}
+
+model TermsAcceptance {
+  id              Int          @id @default(autoincrement())
+  storeId         Int
+  store           Store        @relation(fields: [storeId], references: [id])
+  termsVersionId  Int
+  termsVersion    TermsVersion @relation(fields: [termsVersionId], references: [id])
+  acceptedAt      DateTime     @default(now())
+  @@unique([storeId, termsVersionId])
+  @@map("terms_acceptances")
+}
+
+// ═══ ADMIN ═══
+
+model AdminUser {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         String    @default("suporte")
+  isActive     Boolean   @default(true)
+  lastLogin    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  sessions     AdminSession[]
+  @@map("admin_users")
+}
+
+model AdminSession {
+  id        Int       @id @default(autoincrement())
+  adminId   Int
+  admin     AdminUser @relation(fields: [adminId], references: [id])
+  token     String
+  ipAddress String?
+  userAgent String?
+  isActive  Boolean   @default(true)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  @@map("admin_sessions")
+}
+
+model AdminPlan {
+  id               Int      @id @default(autoincrement())
+  appId            String
+  name             String
+  stripePriceIds   Json     @default("{}")
+  features         Json     @default("{}")
+  price            Json     @default("{}")
+  commissionRate   Float    @default(0)
+  revenueShareRate Float    @default(0)
+  isActive         Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  @@unique([appId, name])
+  @@map("admin_plans")
+}
+
+model AdminConfig {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  group     String   @default("system")
+  label     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("admin_configs")
+}
+
+model AdminLog {
+  id        Int      @id @default(autoincrement())
+  adminId   Int?
+  action    String
+  entity    String?
+  entityId  String?
+  details   Json?
+  ipAddress String?
+  severity  String   @default("info")
+  createdAt DateTime @default(now())
+  @@map("admin_logs")
+}
+
+model AdminCommission {
+  id               Int      @id @default(autoincrement())
+  partnerId        String
+  partnerName      String?
+  storeId          Int
+  invoiceId        String
+  amount           Float
+  commissionRate   Float
+  commissionAmount Float
+  status           String   @default("pending")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  @@unique([invoiceId]) // 1 comissão por fatura — backstop contra reentrega concorrente
+  @@map("admin_commissions")
+}
+
+model AdminCoupon {
+  id                    Int       @id @default(autoincrement())
+  code                  String    @unique
+  type                  String
+  value                 Float
+  maxRedemptions        Int?
+  timesRedeemed         Int       @default(0)
+  validUntil            DateTime?
+  isActive              Boolean   @default(true)
+  stripeCouponId        String?
+  stripePromotionCodeId String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  @@map("admin_coupons")
+}
+
+model AdminFaq {
+  id          Int      @id @default(autoincrement())
+  category    String   @default("geral")
+  locale      String   @default("pt") // idioma da FAQ: pt | es
+  question    String
+  answer      String
+  videoUrl    String?
+  isPublished Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@map("admin_faqs")
+}
+
+// ─── Suporte (tickets) ─────────────────────────────────────────────────────
+// Ticket aberto pela loja (tenant) no app; respondido pelo admin. Thread de
+// mensagens (author = store | admin). Isolado por storeId.
+model SupportTicket {
+  id            Int             @id @default(autoincrement())
+  storeId       Int
+  subject       String?
+  status        String          @default("open") // open | answered | closed
+  lastMessageAt DateTime        @default(now())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  store    Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  messages SupportMessage[]
+
+  @@index([storeId])
+  @@index([status, lastMessageAt(sort: Desc)])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  author    String   // store | admin
+  body      String
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("support_messages")
+}
+
+// ─── Tradução da vitrine + conversão de moeda (traduzAI) ───────────────────
+// Config por loja (1:1) + regras país→idioma/moeda (1:N). Cache de tradução
+// e de câmbio são globais (não por loja) — texto→tradução e taxas de câmbio
+// não são dados sensíveis de tenant, e compartilhar reduz custo de API real.
+model StoreTranslationConfig {
+  id             Int      @id @default(autoincrement())
+  storeId        Int      @unique
+  store          Store    @relation(fields: [storeId], references: [id])
+  enabled        Boolean  @default(false)
+  sourceLanguage String   @default("pt") // idioma original do conteúdo da loja
+  baseCurrency   String   @default("BRL") // moeda original dos preços
+  scriptId       String?  // id retornado pela Nuvemshop Script API
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  @@map("store_translation_configs")
+}
+
+model StoreLocaleRule {
+  id        Int      @id @default(autoincrement())
+  storeId   Int
+  store     Store    @relation(fields: [storeId], references: [id])
+  country   String   // ISO 3166-1 alpha-2, ex: "US"
+  language  String   // ex: "en"
+  currency  String   // ISO 4217, ex: "USD"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([storeId, country])
+  @@map("store_locale_rules")
+}
+
+model TranslationCache {
+  id             Int      @id @default(autoincrement())
+  sourceHash     String   // sha256(sourceText)
+  sourceLang     String
+  targetLang     String
+  sourceText     String
+  translatedText String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  @@unique([sourceHash, sourceLang, targetLang])
+  @@map("translation_cache")
+}
+
+model ExchangeRate {
+  id            Int      @id @default(autoincrement())
+  baseCurrency  String
+  quoteCurrency String
+  rate          Float
+  fetchedAt     DateTime @default(now())
+  @@unique([baseCurrency, quoteCurrency])
+  @@map("exchange_rates")
+}

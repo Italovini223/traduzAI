@@ -1,0 +1,10 @@
+/* Reset mínimo do template.
+   Remove a margem padrão do user-agent no body — dentro do iframe embedado
+   (Nexo SDK), essa margem de 8px aparece como uma moldura branca em volta do
+   app (topo, rodapé e laterais), já que o iAmReady() dimensiona o iframe pela
+   altura do conteúdo. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+}

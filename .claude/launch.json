@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "D:\\AI\\nuvempro-app-template\\frontend",
+      "port": 5173
+    },
+    {
+      "name": "admin-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "D:\\AI\\nuvempro-app-template\\admin-frontend",
+      "port": 5174
+    }
+  ]
+}

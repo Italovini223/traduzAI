@@ -1,0 +1,292 @@
+{
+  "app": {
+    "loading": "Carregando aplicativo...",
+    "error": "Ocorreu um erro",
+    "directAccess": "Este aplicativo deve ser acessado pelo painel da Nuvemshop.",
+    "errorBoundary": {
+      "title": "Algo deu errado",
+      "description": "Um erro inesperado ocorreu.",
+      "reload": "Recarregar"
+    }
+  },
+  "nav": {
+    "dashboard": "Painel",
+    "settings": "Configura\u00e7\u00f5es",
+    "billing": "Planos",
+    "support": "Suporte"
+  },
+  "terms": {
+    "title": "Termos de Uso",
+    "sections": {
+      "s1": {
+        "title": "1. Aceita\u00e7\u00e3o dos Termos",
+        "body": "Ao utilizar este aplicativo, voc\u00ea concorda com todos os termos e condi\u00e7\u00f5es aqui descritos. Se voc\u00ea n\u00e3o concordar com qualquer parte destes termos, n\u00e3o dever\u00e1 utilizar o servi\u00e7o."
+      },
+      "s2": {
+        "title": "2. Descri\u00e7\u00e3o do Servi\u00e7o",
+        "body": "O aplicativo fornece ferramentas e funcionalidades integradas \u00e0 plataforma Nuvemshop para auxiliar na gest\u00e3o da sua loja virtual. Os recursos dispon\u00edveis podem variar conforme o plano contratado."
+      },
+      "s3": {
+        "title": "3. Privacidade e Dados",
+        "body": "Respeitamos a sua privacidade. Os dados coletados s\u00e3o utilizados exclusivamente para o funcionamento do aplicativo. N\u00e3o compartilhamos informa\u00e7\u00f5es pessoais com terceiros sem o seu consentimento expresso."
+      },
+      "s4": {
+        "title": "4. Uso Aceit\u00e1vel",
+        "body": "Voc\u00ea se compromete a utilizar o aplicativo de forma \u00e9tica e legal. \u00c9 proibido utilizar o servi\u00e7o para atividades il\u00edcitas, spam, ou qualquer forma de abuso."
+      },
+      "s5": {
+        "title": "5. Pagamentos e Cancelamento",
+        "body": "Os planos pagos s\u00e3o cobrados conforme o ciclo escolhido. Voc\u00ea pode cancelar a qualquer momento. Ap\u00f3s o cancelamento, o acesso continua at\u00e9 o fim do per\u00edodo pago."
+      },
+      "s6": {
+        "title": "6. Limita\u00e7\u00e3o de Responsabilidade",
+        "body": "O aplicativo \u00e9 fornecido \"como est\u00e1\". N\u00e3o nos responsabilizamos por perdas ou danos decorrentes do uso ou impossibilidade de uso do servi\u00e7o. Faremos o poss\u00edvel para manter a disponibilidade e seguran\u00e7a."
+      }
+    },
+    "scrollHint": "Role at\u00e9 o final para aceitar os termos",
+    "accept": "Li e aceito os Termos de Uso",
+    "error": "Erro ao aceitar os termos. Tente novamente."
+  },
+  "onboarding": {
+    "title": "Configurar seu perfil",
+    "steps": {
+      "s1": "Sobre seu neg\u00f3cio",
+      "s2": "Prefer\u00eancias de conte\u00fado",
+      "s3": "Detalhes adicionais"
+    },
+    "fields": {
+      "niche": "Nicho de mercado",
+      "nichePlaceholder": "Ex: Moda feminina, eletr\u00f4nicos, pet shop...",
+      "audience": "P\u00fablico-alvo",
+      "audiencePlaceholder": "Ex: Mulheres de 25-40 anos, gamers...",
+      "tone": "Tom de comunica\u00e7\u00e3o",
+      "toneOptions": {
+        "professional": "Profissional",
+        "casual": "Casual",
+        "friendly": "Amig\u00e1vel",
+        "formal": "Formal"
+      },
+      "frequency": "Frequ\u00eancia de publica\u00e7\u00e3o",
+      "frequencyOptions": {
+        "daily": "Di\u00e1ria",
+        "weekly": "Semanal",
+        "biweekly": "Quinzenal",
+        "monthly": "Mensal"
+      },
+      "articleLength": "Tamanho do artigo",
+      "articleLengthOptions": {
+        "short": "Curto (300-500 palavras)",
+        "medium": "M\u00e9dio (500-1000 palavras)",
+        "long": "Longo (1000+ palavras)"
+      },
+      "keywords": "Palavras-chave",
+      "keywordsPlaceholder": "Separe por v\u00edrgula: palavra1, palavra2...",
+      "extras": "Informa\u00e7\u00f5es adicionais",
+      "extrasPlaceholder": "Algo mais que devemos saber sobre seu neg\u00f3cio?"
+    },
+    "back": "Voltar",
+    "next": "Pr\u00f3ximo",
+    "finish": "Finalizar"
+  },
+  "billing": {
+    "title": "Planos e Cobran\u00e7a",
+    "locked": "Escolha um plano para liberar o acesso ao aplicativo. Se você já assinou, clique em verificar abaixo.",
+    "lockedVerify": "Já assinei — verificar acesso",
+    "verifying": "Verificando...",
+    "status": {
+      "currentPlan": "Plano atual",
+      "renewalDate": "Data de renova\u00e7\u00e3o",
+      "active": "Ativo",
+      "canceled": "Cancelado",
+      "pastDue": "Pagamento pendente",
+      "trialing": "Per\u00edodo de teste",
+      "trialEnd": "Trial ativo at\u00e9"
+    },
+    "trialActiveTitle": "Voc\u00ea est\u00e1 no per\u00edodo de teste",
+    "trialActiveNotice": "Nenhuma cobran\u00e7a at\u00e9 {{date}}. Ap\u00f3s essa data, a assinatura ser\u00e1 renovada automaticamente.",
+    "trialActiveCancelHint": "Se n\u00e3o quiser ser cobrado, cancele antes de {{date}}.",
+    "interval": {
+      "monthly": "Mensal",
+      "semestral": "Semestral",
+      "annual": "Anual"
+    },
+    "free": "Grátis",
+    "syncSuccess": "Plano atualizado para {{plan}} com sucesso!",
+    "cancelPlan": "Cancelar assinatura",
+    "cancelConfirm": "Tem certeza? O acesso continua até o fim do período.",
+    "cancelConfirmYes": "Sim, cancelar",
+    "cancelSuccess": "Assinatura cancelada. O acesso continua até o fim do período pago.",
+    "cancelHint": "Para cancelar, use o botão acima.",
+    "plans": {
+      "starter": {
+        "name": "Starter",
+        "price": "Gr\u00e1tis",
+        "features": [
+          "Funcionalidades b\u00e1sicas",
+          "At\u00e9 100 produtos",
+          "Suporte por e-mail"
+        ]
+      },
+      "growth": {
+        "name": "Growth",
+        "priceMonthly": "R$ 49,90/m\u00eas",
+        "priceSemiannual": "R$ 39,90/m\u00eas",
+        "priceAnnual": "R$ 29,90/m\u00eas",
+        "features": [
+          "Tudo do Starter",
+          "Produtos ilimitados",
+          "Relat\u00f3rios avan\u00e7ados",
+          "Suporte priorit\u00e1rio"
+        ]
+      },
+      "scale": {
+        "name": "Scale",
+        "priceMonthly": "R$ 99,90/m\u00eas",
+        "priceSemiannual": "R$ 79,90/m\u00eas",
+        "priceAnnual": "R$ 59,90/m\u00eas",
+        "features": [
+          "Tudo do Growth",
+          "API personalizada",
+          "Integra\u00e7\u00f5es premium",
+          "Gerente de conta dedicado",
+          "SLA garantido"
+        ]
+      }
+    },
+    "checkout": "Assinar",
+    "portal": "Gerenciar assinatura",
+    "cancel": "Cancelar plano",
+    "cancelPlan": "Cancelar assinatura",
+    "cancelScheduled": "Cancelamento agendado",
+    "subscribedUntil": "Ativo até",
+    "perMonth": "/mês",
+    "notAvailableInterval": "Indisponível neste período",
+    "cancelModal": {
+      "title": "Cancelar assinatura",
+      "body": "Tem certeza? O acesso continua até o fim do período pago.",
+      "confirm": "Sim, cancelar"
+    },
+    "invoices": {
+      "title": "Faturas",
+      "date": "Data",
+      "amount": "Valor",
+      "status": "Status",
+      "receipt": "Recibo",
+      "view": "Ver",
+      "paid": "Pago",
+      "pending": "Pendente",
+      "noInvoices": "Nenhuma fatura encontrada."
+    },
+    "partner": {
+      "title": "Código do Parceiro",
+      "description": "Se você foi indicado por um parceiro, insira o código abaixo para associá-lo à sua conta.",
+      "label": "Código do Parceiro",
+      "placeholder": "Ex: E5DCHV87",
+      "save": "Associar Parceiro",
+      "saving": "Validando...",
+      "associated": "Parceiro associado: {{name}} ({{id}})",
+      "change": "Alterar",
+      "success": "Parceiro associado com sucesso!",
+      "notFound": "Parceiro não encontrado. Verifique o código e tente novamente.",
+      "suspended": "Este parceiro está suspenso e não pode receber indicações.",
+      "notConfigured": "Integração de parceiros não configurada."
+    }
+  },
+  "support": {
+    "title": "Suporte",
+    "whatsapp": "Falar no WhatsApp",
+    "whatsappNumber": "",
+    "videoTitle": "Tutorial em v\u00eddeo",
+    "viewVideo": "Ver v\u00eddeo",
+    "tickets": {
+      "title": "Fale com a gente",
+      "subjectPlaceholder": "Assunto (opcional)",
+      "messagePlaceholder": "Escreva sua d\u00favida ou sugest\u00e3o...",
+      "send": "Enviar",
+      "sending": "Enviando...",
+      "mine": "Minhas conversas",
+      "replyPlaceholder": "Responder...",
+      "reply": "Enviar",
+      "you": "Voc\u00ea",
+      "us": "Suporte",
+      "status": { "open": "Aberto", "answered": "Respondido", "closed": "Fechado" },
+      "emailNotify": "Receber e-mails quando respondermos"
+    },
+    "faq": [
+      {
+        "question": "Como fa\u00e7o para alterar meu plano?",
+        "answer": "V\u00e1 at\u00e9 a p\u00e1gina de Planos e escolha o plano desejado. A mudan\u00e7a \u00e9 aplicada imediatamente."
+      },
+      {
+        "question": "Posso cancelar a qualquer momento?",
+        "answer": "Sim, voc\u00ea pode cancelar quando quiser. O acesso continua at\u00e9 o final do per\u00edodo j\u00e1 pago."
+      },
+      {
+        "question": "Como entro em contato com o suporte?",
+        "answer": "Voc\u00ea pode nos contatar pelo WhatsApp ou abrir um chamado pelo e-mail de suporte."
+      },
+      {
+        "question": "Meus dados est\u00e3o seguros?",
+        "answer": "Sim, utilizamos criptografia e seguimos as melhores pr\u00e1ticas de seguran\u00e7a para proteger seus dados."
+      }
+    ]
+  },
+  "dashboard": {
+    "title": "Painel",
+    "welcome": "Bem-vindo ao seu painel!",
+    "contentPlaceholder": "Adicione aqui o conteúdo do seu app."
+  },
+  "settings": {
+    "title": "Configura\u00e7\u00f5es",
+    "placeholder": "Adicione aqui as configura\u00e7\u00f5es do seu app."
+  },
+  "translations": {
+    "title": "Tradu\u00e7\u00e3o e Moeda",
+    "enableTitle": "Ativa\u00e7\u00e3o",
+    "enabledOn": "Tradu\u00e7\u00e3o autom\u00e1tica ativada",
+    "enabledOff": "Tradu\u00e7\u00e3o autom\u00e1tica desativada",
+    "scriptOk": "Script instalado na vitrine",
+    "scriptMissing": "Script n\u00e3o instalado",
+    "registerScript": "Registrar script na loja",
+    "sourceTitle": "Idioma e moeda de origem",
+    "sourceDescription": "Idioma e moeda em que o conte\u00fado da sua loja est\u00e1 escrito originalmente.",
+    "sourceLanguage": "Idioma original",
+    "baseCurrency": "Moeda original",
+    "savedSource": "Configura\u00e7\u00e3o salva com sucesso!",
+    "scriptRegistered": "Script registrado com sucesso!",
+    "rulesTitle": "Regras por pa\u00eds",
+    "rulesDescription": "Escolha o idioma e a moeda exibidos para visitantes de cada pa\u00eds.",
+    "noRules": "Nenhuma regra configurada ainda.",
+    "country": "Pa\u00eds",
+    "language": "Idioma",
+    "currency": "Moeda",
+    "edit": "Editar",
+    "selectCountry": "Selecione o pa\u00eds",
+    "selectLanguage": "Selecione o idioma",
+    "selectCurrency": "Selecione a moeda",
+    "addRule": "Adicionar regra",
+    "ruleAdded": "Regra adicionada com sucesso!"
+  },
+  "footer": {
+    "rights": "Todos os direitos reservados",
+    "terms": "Termos de Uso e Privacidade"
+  },
+  "trial": {
+    "bannerFree": "Você está no período de teste gratuito. Restam {{days}} dias.",
+    "bannerFreeOne": "Seu período de teste gratuito termina amanhã.",
+    "bannerAction": "Ver planos",
+    "paidBadge": "Assine e ganhe {{days}} dias grátis",
+    "freeBadge": "{{days}} dias grátis para testar"
+  },
+  "common": {
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "loading": "Carregando...",
+    "error": "Erro",
+    "success": "Sucesso!",
+    "noData": "Nenhum dado encontrado.",
+    "close": "Fechar",
+    "edit": "Editar"
+  }
+}

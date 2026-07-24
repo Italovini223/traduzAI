@@ -1,0 +1,288 @@
+{
+  "app": {
+    "loading": "Cargando aplicaci\u00f3n...",
+    "error": "Ocurri\u00f3 un error",
+    "directAccess": "Esta aplicaci\u00f3n debe ser accedida desde el panel de Tiendanube.",
+    "errorBoundary": {
+      "title": "Algo sali\u00f3 mal",
+      "description": "Ocurri\u00f3 un error inesperado.",
+      "reload": "Recargar"
+    }
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "settings": "Configuraci\u00f3n",
+    "billing": "Planes",
+    "support": "Soporte"
+  },
+  "terms": {
+    "title": "T\u00e9rminos de Uso",
+    "sections": {
+      "s1": {
+        "title": "1. Aceptaci\u00f3n de los T\u00e9rminos",
+        "body": "Al utilizar esta aplicaci\u00f3n, aceptas todos los t\u00e9rminos y condiciones aqu\u00ed descritos. Si no est\u00e1s de acuerdo con alguna parte de estos t\u00e9rminos, no deber\u00e1s utilizar el servicio."
+      },
+      "s2": {
+        "title": "2. Descripci\u00f3n del Servicio",
+        "body": "La aplicaci\u00f3n proporciona herramientas y funcionalidades integradas a la plataforma Tiendanube para ayudarte en la gesti\u00f3n de tu tienda en l\u00ednea. Los recursos disponibles pueden variar seg\u00fan el plan contratado."
+      },
+      "s3": {
+        "title": "3. Privacidad y Datos",
+        "body": "Respetamos tu privacidad. Los datos recopilados se utilizan exclusivamente para el funcionamiento de la aplicaci\u00f3n. No compartimos informaci\u00f3n personal con terceros sin tu consentimiento expreso."
+      },
+      "s4": {
+        "title": "4. Uso Aceptable",
+        "body": "Te comprometes a utilizar la aplicaci\u00f3n de forma \u00e9tica y legal. Est\u00e1 prohibido usar el servicio para actividades il\u00edcitas, spam o cualquier forma de abuso."
+      },
+      "s5": {
+        "title": "5. Pagos y Cancelaci\u00f3n",
+        "body": "Los planes de pago se cobran seg\u00fan el ciclo elegido. Puedes cancelar en cualquier momento. Despu\u00e9s de la cancelaci\u00f3n, el acceso contin\u00faa hasta el final del per\u00edodo pagado."
+      },
+      "s6": {
+        "title": "6. Limitaci\u00f3n de Responsabilidad",
+        "body": "La aplicaci\u00f3n se proporciona \"tal cual\". No nos responsabilizamos por p\u00e9rdidas o da\u00f1os derivados del uso o imposibilidad de uso del servicio. Haremos lo posible para mantener la disponibilidad y seguridad."
+      }
+    },
+    "scrollHint": "Despl\u00e1zate hasta el final para aceptar los t\u00e9rminos",
+    "accept": "Le\u00ed y acepto los T\u00e9rminos de Uso",
+    "error": "Error al aceptar los t\u00e9rminos. Int\u00e9ntalo de nuevo."
+  },
+  "onboarding": {
+    "title": "Configurar tu perfil",
+    "steps": {
+      "s1": "Sobre tu negocio",
+      "s2": "Preferencias de contenido",
+      "s3": "Detalles adicionales"
+    },
+    "fields": {
+      "niche": "Nicho de mercado",
+      "nichePlaceholder": "Ej: Moda femenina, electr\u00f3nica, tienda de mascotas...",
+      "audience": "P\u00fablico objetivo",
+      "audiencePlaceholder": "Ej: Mujeres de 25-40 a\u00f1os, gamers...",
+      "tone": "Tono de comunicaci\u00f3n",
+      "toneOptions": {
+        "professional": "Profesional",
+        "casual": "Casual",
+        "friendly": "Amigable",
+        "formal": "Formal"
+      },
+      "frequency": "Frecuencia de publicaci\u00f3n",
+      "frequencyOptions": {
+        "daily": "Diaria",
+        "weekly": "Semanal",
+        "biweekly": "Quincenal",
+        "monthly": "Mensual"
+      },
+      "articleLength": "Largo del art\u00edculo",
+      "articleLengthOptions": {
+        "short": "Corto (300-500 palabras)",
+        "medium": "Medio (500-1000 palabras)",
+        "long": "Largo (1000+ palabras)"
+      },
+      "keywords": "Palabras clave",
+      "keywordsPlaceholder": "Separa por coma: palabra1, palabra2...",
+      "extras": "Informaci\u00f3n adicional",
+      "extrasPlaceholder": "\u00bfAlgo m\u00e1s que debamos saber sobre tu negocio?"
+    },
+    "back": "Volver",
+    "next": "Siguiente",
+    "finish": "Finalizar"
+  },
+  "billing": {
+    "title": "Planes y Facturaci\u00f3n",
+    "locked": "Elige un plan para habilitar el acceso a la aplicaci\u00f3n. Si ya te suscribiste, haz clic en verificar.",
+    "lockedVerify": "Ya me suscrib\u00ed \u2014 verificar acceso",
+    "verifying": "Verificando...",
+    "status": {
+      "currentPlan": "Plan actual",
+      "renewalDate": "Fecha de renovaci\u00f3n",
+      "active": "Activo",
+      "canceled": "Cancelado",
+      "pastDue": "Pago pendiente",
+      "trialing": "Per\u00edodo de prueba",
+      "trialEnd": "Trial activo hasta"
+    },
+    "trialActiveTitle": "Est\u00e1s en el per\u00edodo de prueba",
+    "trialActiveNotice": "Sin cobros hasta el {{date}}. Despu\u00e9s de esa fecha, la suscripci\u00f3n se renovar\u00e1 autom\u00e1ticamente.",
+    "trialActiveCancelHint": "Si no quieres ser cobrado, cancela antes del {{date}}.",
+    "interval": {
+      "monthly": "Mensual",
+      "semestral": "Semestral",
+      "annual": "Anual"
+    },
+    "free": "Gratis",
+    "syncSuccess": "Plan actualizado a {{plan}} con \u00e9xito!",
+    "cancelPlan": "Cancelar suscripci\u00f3n",
+    "cancelScheduled": "Cancelaci\u00f3n programada",
+    "subscribedUntil": "Activo hasta",
+    "perMonth": "/mes",
+    "notAvailableInterval": "No disponible en este per\u00edodo",
+    "cancelModal": {
+      "title": "Cancelar suscripci\u00f3n",
+      "body": "\u00bfEst\u00e1s seguro? El acceso contin\u00faa hasta el fin del per\u00edodo pagado.",
+      "confirm": "S\u00ed, cancelar"
+    },
+    "cancelSuccess": "Suscripci\u00f3n cancelada. El acceso contin\u00faa hasta el fin del per\u00edodo pagado.",
+    "plans": {
+      "starter": {
+        "name": "Starter",
+        "price": "Gratis",
+        "features": [
+          "Funcionalidades b\u00e1sicas",
+          "Hasta 100 productos",
+          "Soporte por e-mail"
+        ]
+      },
+      "growth": {
+        "name": "Growth",
+        "priceMonthly": "$ 49.90/mes",
+        "priceSemiannual": "$ 39.90/mes",
+        "priceAnnual": "$ 29.90/mes",
+        "features": [
+          "Todo de Starter",
+          "Productos ilimitados",
+          "Reportes avanzados",
+          "Soporte prioritario"
+        ]
+      },
+      "scale": {
+        "name": "Scale",
+        "priceMonthly": "$ 99.90/mes",
+        "priceSemiannual": "$ 79.90/mes",
+        "priceAnnual": "$ 59.90/mes",
+        "features": [
+          "Todo de Growth",
+          "API personalizada",
+          "Integraciones premium",
+          "Gerente de cuenta dedicado",
+          "SLA garantizado"
+        ]
+      }
+    },
+    "checkout": "Suscribirse",
+    "portal": "Administrar suscripci\u00f3n",
+    "cancel": "Cancelar plan",
+    "invoices": {
+      "title": "Facturas",
+      "date": "Fecha",
+      "amount": "Monto",
+      "status": "Estado",
+      "receipt": "Recibo",
+      "view": "Ver",
+      "paid": "Pagado",
+      "pending": "Pendiente",
+      "noInvoices": "No se encontraron facturas."
+    },
+    "partner": {
+      "title": "Código del Socio",
+      "description": "Si fuiste referido por un socio, ingresa el código abajo para asociarlo a tu cuenta.",
+      "label": "Código del Socio",
+      "placeholder": "Ej: E5DCHV87",
+      "save": "Asociar Socio",
+      "saving": "Validando...",
+      "associated": "Socio asociado: {{name}} ({{id}})",
+      "change": "Cambiar",
+      "success": "¡Socio asociado con éxito!",
+      "notFound": "Socio no encontrado. Verifica el código e intenta de nuevo.",
+      "suspended": "Este socio está suspendido y no puede recibir indicaciones.",
+      "notConfigured": "Integración de socios no configurada."
+    }
+  },
+  "support": {
+    "title": "Soporte",
+    "whatsapp": "Hablar por WhatsApp",
+    "whatsappNumber": "",
+    "videoTitle": "Tutorial en video",
+    "viewVideo": "Ver video",
+    "tickets": {
+      "title": "Habla con nosotros",
+      "subjectPlaceholder": "Asunto (opcional)",
+      "messagePlaceholder": "Escribe tu duda o sugerencia...",
+      "send": "Enviar",
+      "sending": "Enviando...",
+      "mine": "Mis conversaciones",
+      "replyPlaceholder": "Responder...",
+      "reply": "Enviar",
+      "you": "Tú",
+      "us": "Soporte",
+      "status": { "open": "Abierto", "answered": "Respondido", "closed": "Cerrado" },
+      "emailNotify": "Recibir correos cuando respondamos"
+    },
+    "faq": [
+      {
+        "question": "\u00bfC\u00f3mo cambio mi plan?",
+        "answer": "Ve a la p\u00e1gina de Planes y elige el plan deseado. El cambio se aplica de inmediato."
+      },
+      {
+        "question": "\u00bfPuedo cancelar en cualquier momento?",
+        "answer": "S\u00ed, puedes cancelar cuando quieras. El acceso contin\u00faa hasta el final del per\u00edodo ya pagado."
+      },
+      {
+        "question": "\u00bfC\u00f3mo contacto al soporte?",
+        "answer": "Puedes contactarnos por WhatsApp o abrir un ticket por el e-mail de soporte."
+      },
+      {
+        "question": "\u00bfMis datos est\u00e1n seguros?",
+        "answer": "S\u00ed, utilizamos encriptaci\u00f3n y seguimos las mejores pr\u00e1cticas de seguridad para proteger tus datos."
+      }
+    ]
+  },
+  "dashboard": {
+    "title": "Panel",
+    "welcome": "\u00a1Bienvenido a tu panel!",
+    "contentPlaceholder": "Agrega aqu\u00ed el contenido de tu app."
+  },
+  "settings": {
+    "title": "Configuraci\u00f3n",
+    "placeholder": "Agrega aqu\u00ed las configuraciones de tu app."
+  },
+  "translations": {
+    "title": "Traducci\u00f3n y Moneda",
+    "enableTitle": "Activaci\u00f3n",
+    "enabledOn": "Traducci\u00f3n autom\u00e1tica activada",
+    "enabledOff": "Traducci\u00f3n autom\u00e1tica desactivada",
+    "scriptOk": "Script instalado en la tienda",
+    "scriptMissing": "Script no instalado",
+    "registerScript": "Registrar script en la tienda",
+    "sourceTitle": "Idioma y moneda de origen",
+    "sourceDescription": "Idioma y moneda en que est\u00e1 escrito originalmente el contenido de tu tienda.",
+    "sourceLanguage": "Idioma original",
+    "baseCurrency": "Moneda original",
+    "savedSource": "\u00a1Configuraci\u00f3n guardada con \u00e9xito!",
+    "scriptRegistered": "\u00a1Script registrado con \u00e9xito!",
+    "rulesTitle": "Reglas por pa\u00eds",
+    "rulesDescription": "Elige el idioma y la moneda que ven los visitantes de cada pa\u00eds.",
+    "noRules": "Todav\u00eda no hay reglas configuradas.",
+    "country": "Pa\u00eds",
+    "language": "Idioma",
+    "currency": "Moneda",
+    "edit": "Editar",
+    "selectCountry": "Selecciona el pa\u00eds",
+    "selectLanguage": "Selecciona el idioma",
+    "selectCurrency": "Selecciona la moneda",
+    "addRule": "Agregar regla",
+    "ruleAdded": "\u00a1Regla agregada con \u00e9xito!"
+  },
+  "footer": {
+    "rights": "Todos los derechos reservados",
+    "terms": "T\u00e9rminos de Uso y Privacidad"
+  },
+  "trial": {
+    "bannerFree": "Estás en el período de prueba gratuito. Quedan {{days}} días.",
+    "bannerFreeOne": "Tu período de prueba gratuito termina mañana.",
+    "bannerAction": "Ver planes",
+    "paidBadge": "Suscríbete y obtén {{days}} días gratis",
+    "freeBadge": "{{days}} días gratis para probar"
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "\u00a1\u00c9xito!",
+    "noData": "No se encontraron datos.",
+    "close": "Cerrar",
+    "edit": "Editar"
+  }
+}
