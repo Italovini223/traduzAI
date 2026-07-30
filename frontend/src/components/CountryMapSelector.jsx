@@ -94,7 +94,7 @@ export default function CountryMapSelector({
                   return (
                     <Geography
                       key={geo.rsmKey}
-                      geo={geo}
+                      geography={geo}
                       onClick={() => isSupported && openCountry(alpha2)}
                       onMouseEnter={() => setHoveredName(alpha2 ? supportedByCode.get(alpha2)?.label || geo.properties.name : geo.properties.name)}
                       onMouseLeave={() => setHoveredName(null)}
