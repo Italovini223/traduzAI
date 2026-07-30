@@ -7,6 +7,7 @@ const {
   SUPPORTED_COUNTRIES,
   SUPPORTED_LANGUAGES,
   SUPPORTED_CURRENCIES,
+  COUNTRY_DEFAULTS,
   isValidRule,
   isValidLanguage,
   isValidCurrency,
@@ -25,6 +26,7 @@ router.get('/options', (req, res) => {
     countries: SUPPORTED_COUNTRIES,
     languages: SUPPORTED_LANGUAGES.map(({ code, label }) => ({ code, label })),
     currencies: SUPPORTED_CURRENCIES,
+    defaults: COUNTRY_DEFAULTS,
   });
 });
 
@@ -164,8 +166,13 @@ router.post('/register-script', async (req, res, next) => {
       throw new AppError('Loja sem token de acesso Nuvemshop valido. Reinstale o app.', 400, 'NO_ACCESS_TOKEN');
     }
 
-    const scriptUrl = `${process.env.BACKEND_URL}/widget.js?store=${store.nuvemshopId}`;
-    const script = await registerScript(store.nuvemshopId, store.accessToken, scriptUrl);
+    if (!process.env.NUVEMSHOP_SCRIPT_ID) {
+      throw new AppError('NUVEMSHOP_SCRIPT_ID nao configurado no backend.', 500, 'MISSING_SCRIPT_ID');
+    }
+
+    const script = await registerScript(store.nuvemshopId, store.accessToken, process.env.NUVEMSHOP_SCRIPT_ID, {
+      store: store.nuvemshopId,
+    });
 
     const config = await prisma.storeTranslationConfig.upsert({
       where: { storeId: store.id },

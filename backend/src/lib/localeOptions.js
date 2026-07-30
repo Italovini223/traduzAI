@@ -125,6 +125,68 @@ const SUPPORTED_CURRENCIES = [
   { code: 'TRY', label: 'Lira turca' },
 ];
 
+// Idioma e moeda oficiais/mais usados de cada pais — usado para pre-preencher
+// o formulario ao selecionar um pais no mapa (usuario pode trocar antes de salvar).
+// Paises sem idioma exato na lista SUPPORTED_LANGUAGES caem em 'en' como fallback pratico.
+const COUNTRY_DEFAULTS = {
+  AR: { language: 'es', currency: 'ARS' },
+  BO: { language: 'es', currency: 'BOB' },
+  BR: { language: 'pt-BR', currency: 'BRL' },
+  CL: { language: 'es', currency: 'CLP' },
+  CO: { language: 'es', currency: 'COP' },
+  CR: { language: 'es', currency: 'CRC' },
+  CU: { language: 'es', currency: 'CUP' },
+  DO: { language: 'es', currency: 'DOP' },
+  EC: { language: 'es', currency: 'USD' },
+  SV: { language: 'es', currency: 'USD' },
+  GT: { language: 'es', currency: 'GTQ' },
+  HN: { language: 'es', currency: 'HNL' },
+  MX: { language: 'es', currency: 'MXN' },
+  NI: { language: 'es', currency: 'NIO' },
+  PA: { language: 'es', currency: 'PAB' },
+  PY: { language: 'es', currency: 'PYG' },
+  PE: { language: 'es', currency: 'PEN' },
+  PR: { language: 'es', currency: 'USD' },
+  UY: { language: 'es', currency: 'UYU' },
+  VE: { language: 'es', currency: 'VES' },
+  US: { language: 'en', currency: 'USD' },
+  CA: { language: 'en', currency: 'CAD' },
+  PT: { language: 'pt-PT', currency: 'EUR' },
+  ES: { language: 'es', currency: 'EUR' },
+  FR: { language: 'fr', currency: 'EUR' },
+  DE: { language: 'de', currency: 'EUR' },
+  IT: { language: 'it', currency: 'EUR' },
+  GB: { language: 'en', currency: 'GBP' },
+  IE: { language: 'en', currency: 'EUR' },
+  NL: { language: 'nl', currency: 'EUR' },
+  BE: { language: 'nl', currency: 'EUR' },
+  LU: { language: 'fr', currency: 'EUR' },
+  CH: { language: 'de', currency: 'CHF' },
+  AT: { language: 'de', currency: 'EUR' },
+  SE: { language: 'en', currency: 'SEK' },
+  NO: { language: 'en', currency: 'NOK' },
+  DK: { language: 'en', currency: 'DKK' },
+  FI: { language: 'en', currency: 'EUR' },
+  PL: { language: 'pl', currency: 'PLN' },
+  CZ: { language: 'en', currency: 'CZK' },
+  HU: { language: 'en', currency: 'HUF' },
+  RO: { language: 'en', currency: 'RON' },
+  GR: { language: 'en', currency: 'EUR' },
+  RU: { language: 'ru', currency: 'RUB' },
+  UA: { language: 'en', currency: 'UAH' },
+  CN: { language: 'zh', currency: 'CNY' },
+  JP: { language: 'ja', currency: 'JPY' },
+  KR: { language: 'ko', currency: 'KRW' },
+  IN: { language: 'en', currency: 'INR' },
+  AU: { language: 'en', currency: 'AUD' },
+  NZ: { language: 'en', currency: 'NZD' },
+  ZA: { language: 'en', currency: 'ZAR' },
+  IL: { language: 'en', currency: 'ILS' },
+  AE: { language: 'en', currency: 'AED' },
+  SA: { language: 'en', currency: 'SAR' },
+  TR: { language: 'tr', currency: 'TRY' },
+};
+
 const COUNTRY_CODES = new Set(SUPPORTED_COUNTRIES.map((c) => c.code));
 const LANGUAGE_CODES = new Set(SUPPORTED_LANGUAGES.map((l) => l.code));
 const CURRENCY_CODES = new Set(SUPPORTED_CURRENCIES.map((c) => c.code));
@@ -150,13 +212,19 @@ function getDeeplTarget(languageCode) {
   return lang ? lang.deeplTarget : null;
 }
 
+function getCountryDefaults(countryCode) {
+  return COUNTRY_DEFAULTS[countryCode] || null;
+}
+
 module.exports = {
   SUPPORTED_COUNTRIES,
   SUPPORTED_LANGUAGES,
   SUPPORTED_CURRENCIES,
+  COUNTRY_DEFAULTS,
   isValidCountry,
   isValidLanguage,
   isValidCurrency,
   isValidRule,
   getDeeplTarget,
+  getCountryDefaults,
 };

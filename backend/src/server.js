@@ -58,8 +58,20 @@ app.use(globalLimiter);
 app.use(express.json({ limit: '10mb', verify: (req, _res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true }));
 
-// ─── Widget publico da vitrine (public/widget.js). Servido como arquivo
-// estatico — carregado via <script src>, nao precisa de CORS.
+// ─── Widget publico da vitrine (public/widget.js). Servido dinamicamente
+// (nao estatico) para injetar a URL real do backend no lugar do placeholder
+// __API_ORIGIN__ — necessario pois a Nuvemshop serve o arquivo pelo proprio
+// CDN (apps-scripts.tiendanube.com), entao a origem do <script src> no
+// navegador nao e a nossa. Nao precisa de CORS (carregado via <script src>).
+const fs = require('fs');
+let widgetJsCache = null;
+app.get('/widget.js', (req, res) => {
+  if (!widgetJsCache) {
+    const raw = fs.readFileSync(path.join(__dirname, '../public/widget.js'), 'utf8');
+    widgetJsCache = raw.replace('__API_ORIGIN__', process.env.BACKEND_URL || '');
+  }
+  res.type('application/javascript').send(widgetJsCache);
+});
 app.use(express.static(path.join(__dirname, '../public')));
 
 // ─── Health check

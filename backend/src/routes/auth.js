@@ -74,8 +74,9 @@ router.get('/callback', authLimiter, async (req, res, next) => {
     // falha aqui nao pode quebrar o install; o lojista pode reinstalar o
     // script depois na pagina de Configuracoes do app).
     try {
-      const scriptUrl = `${process.env.BACKEND_URL}/widget.js?store=${store.nuvemshopId}`;
-      const script = await registerScript(store.nuvemshopId, accessToken, scriptUrl);
+      const script = await registerScript(store.nuvemshopId, accessToken, process.env.NUVEMSHOP_SCRIPT_ID, {
+        store: store.nuvemshopId,
+      });
       await prisma.storeTranslationConfig.upsert({
         where: { storeId: store.id },
         update: { scriptId: String(script.id) },

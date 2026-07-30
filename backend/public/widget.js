@@ -5,9 +5,13 @@
  * hook em backend/src/routes/auth.js). Roda no navegador do comprador em
  * TODA página da vitrine pública da loja instalada.
  *
- * Vanilla JS, sem dependências e sem build step (é servido como está,
- * direto pelo Express — backend/src/server.js). O identificador da loja
- * (nuvemshopId) vem embutido na própria URL do <script src="...?store=123">.
+ * Vanilla JS, sem dependências e sem build step. Servido dinamicamente pelo
+ * Express (backend/src/server.js), que substitui o placeholder __API_ORIGIN__
+ * pela URL real do backend antes de enviar — necessário porque a Nuvemshop
+ * serve o arquivo pelo próprio CDN (apps-scripts.tiendanube.com), então
+ * `document.currentScript.src` aponta pro CDN deles, não pro nosso backend.
+ * O identificador da loja (nuvemshopId) continua vindo da query string do
+ * próprio <script src="...?store=123">, que a Nuvemshop preserva ao servir.
  *
  * A lógica de detecção/conversão de preço abaixo é uma cópia funcional de
  * backend/src/lib/priceParser.js (testado via node --test) — sem bundler,
@@ -19,9 +23,7 @@
   var CURRENT_SCRIPT = document.currentScript;
   var SCRIPT_URL = CURRENT_SCRIPT ? CURRENT_SCRIPT.src : '';
 
-  var API_ORIGIN = (function () {
-    try { return new URL(SCRIPT_URL).origin; } catch (e) { return ''; }
-  })();
+  var API_ORIGIN = '__API_ORIGIN__';
   var STORE_ID = (function () {
     try { return new URL(SCRIPT_URL).searchParams.get('store'); } catch (e) { return null; }
   })();

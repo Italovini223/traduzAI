@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Card, Button, Text, Title, Tag, Alert, Table, Spinner, Select, Toggle } from '@nimbus-ds/components';
+import { Box, Card, Button, Text, Title, Tag, Alert, Spinner, Select, Toggle } from '@nimbus-ds/components';
 import api from '../services/api.js';
-
-const emptyNewRule = { country: '', language: '', currency: '' };
+import CountryMapSelector from '../components/CountryMapSelector.jsx';
 
 export default function Settings() {
   const { t } = useTranslation();
 
-  const [options, setOptions] = useState({ countries: [], languages: [], currencies: [] });
+  const [options, setOptions] = useState({ countries: [], languages: [], currencies: [], defaults: {} });
   const [loadingOptions, setLoadingOptions] = useState(true);
 
   const [config, setConfig] = useState({ enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL', scriptId: null });
@@ -17,11 +16,6 @@ export default function Settings() {
   const [savingToggle, setSavingToggle] = useState(false);
   const [savingSource, setSavingSource] = useState(false);
   const [registeringScript, setRegisteringScript] = useState(false);
-
-  const [newRule, setNewRule] = useState(emptyNewRule);
-  const [addingRule, setAddingRule] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [editRule, setEditRule] = useState(emptyNewRule);
 
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -45,6 +39,7 @@ export default function Settings() {
         countries: res.data?.countries || [],
         languages: res.data?.languages || [],
         currencies: res.data?.currencies || [],
+        defaults: res.data?.defaults || {},
       });
     } catch {
       // Silencioso — dropdowns ficam vazios, usuário pode recarregar a página
@@ -110,36 +105,22 @@ export default function Settings() {
     }
   };
 
-  const handleAddRule = async () => {
-    if (!newRule.country || !newRule.language || !newRule.currency) return;
-    setAddingRule(true);
+  const handleAddRule = async (country, language, currency) => {
     setError(null);
     try {
-      const res = await api.post('/api/translations/rules', newRule);
+      const res = await api.post('/api/translations/rules', { country, language, currency });
       setRules((prev) => [...prev, res.data.rule].sort((a, b) => a.country.localeCompare(b.country)));
-      setNewRule(emptyNewRule);
       setSuccessMsg(t('translations.ruleAdded'));
     } catch (err) {
       setError(err.response?.data?.error || err.message);
-    } finally {
-      setAddingRule(false);
     }
   };
 
-  const startEdit = (rule) => {
-    setEditingId(rule.id);
-    setEditRule({ country: rule.country, language: rule.language, currency: rule.currency });
-  };
-
-  const handleUpdateRule = async (id) => {
+  const handleUpdateRule = async (id, language, currency) => {
     setError(null);
     try {
-      const res = await api.put(`/api/translations/rules/${id}`, {
-        language: editRule.language,
-        currency: editRule.currency,
-      });
+      const res = await api.put(`/api/translations/rules/${id}`, { language, currency });
       setRules((prev) => prev.map((r) => (r.id === id ? res.data.rule : r)));
-      setEditingId(null);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
     }
@@ -154,13 +135,6 @@ export default function Settings() {
       setError(err.response?.data?.error || err.message);
     }
   };
-
-  const countryLabel = (code) => options.countries.find((c) => c.code === code)?.label || code;
-  const languageLabel = (code) => options.languages.find((l) => l.code === code)?.label || code;
-  const currencyLabel = (code) => options.currencies.find((c) => c.code === code)?.label || code;
-
-  const usedCountries = new Set(rules.map((r) => r.country));
-  const availableCountries = options.countries.filter((c) => !usedCountries.has(c.code));
 
   return (
     <Box display="flex" flexDirection="column" gap="4">
@@ -264,150 +238,20 @@ export default function Settings() {
           <Box display="flex" flexDirection="column" gap="3">
             <Text color="neutral-textLow">{t('translations.rulesDescription')}</Text>
 
-            {loadingConfig ? (
+            {loadingConfig || loadingOptions ? (
               <Spinner />
-            ) : rules.length === 0 ? (
-              <Text color="neutral-textLow">{t('translations.noRules')}</Text>
             ) : (
-              <Table>
-                <Table.Head>
-                  <Table.Row>
-                    <Table.Cell as="th">{t('translations.country')}</Table.Cell>
-                    <Table.Cell as="th">{t('translations.language')}</Table.Cell>
-                    <Table.Cell as="th">{t('translations.currency')}</Table.Cell>
-                    <Table.Cell as="th"></Table.Cell>
-                  </Table.Row>
-                </Table.Head>
-                <Table.Body>
-                  {rules.map((rule) => (
-                    <Table.Row key={rule.id}>
-                      <Table.Cell>{countryLabel(rule.country)}</Table.Cell>
-                      <Table.Cell>
-                        {editingId === rule.id ? (
-                          <Select
-                            name={`language-${rule.id}`}
-                            value={editRule.language}
-                            onChange={(e) => setEditRule((prev) => ({ ...prev, language: e.target.value }))}
-                          >
-                            {options.languages.map((lang) => (
-                              <Select.Option key={lang.code} value={lang.code} label={lang.label}>
-                                {lang.label}
-                              </Select.Option>
-                            ))}
-                          </Select>
-                        ) : (
-                          languageLabel(rule.language)
-                        )}
-                      </Table.Cell>
-                      <Table.Cell>
-                        {editingId === rule.id ? (
-                          <Select
-                            name={`currency-${rule.id}`}
-                            value={editRule.currency}
-                            onChange={(e) => setEditRule((prev) => ({ ...prev, currency: e.target.value }))}
-                          >
-                            {options.currencies.map((cur) => (
-                              <Select.Option key={cur.code} value={cur.code} label={cur.label}>
-                                {cur.label}
-                              </Select.Option>
-                            ))}
-                          </Select>
-                        ) : (
-                          currencyLabel(rule.currency)
-                        )}
-                      </Table.Cell>
-                      <Table.Cell>
-                        <Box display="flex" gap="2">
-                          {editingId === rule.id ? (
-                            <>
-                              <Button appearance="primary" onClick={() => handleUpdateRule(rule.id)}>
-                                {t('common.save')}
-                              </Button>
-                              <Button appearance="neutral" onClick={() => setEditingId(null)}>
-                                {t('common.cancel')}
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button appearance="neutral" onClick={() => startEdit(rule)}>
-                                {t('common.edit')}
-                              </Button>
-                              <Button appearance="danger" onClick={() => handleDeleteRule(rule.id)}>
-                                {t('common.delete')}
-                              </Button>
-                            </>
-                          )}
-                        </Box>
-                      </Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table>
+              <CountryMapSelector
+                countries={options.countries}
+                languages={options.languages}
+                currencies={options.currencies}
+                rules={rules}
+                defaults={options.defaults}
+                onAddRule={handleAddRule}
+                onUpdateRule={handleUpdateRule}
+                onDeleteRule={handleDeleteRule}
+              />
             )}
-
-            <Box display="flex" gap="3" flexWrap="wrap" alignItems="flex-end">
-              <Box display="flex" flexDirection="column" gap="1" minWidth="180px">
-                <Text>{t('translations.country')}</Text>
-                <Select
-                  name="newRuleCountry"
-                  value={newRule.country}
-                  disabled={loadingOptions}
-                  onChange={(e) => setNewRule((prev) => ({ ...prev, country: e.target.value }))}
-                >
-                  <Select.Option value="" label={t('translations.selectCountry')}>
-                    {t('translations.selectCountry')}
-                  </Select.Option>
-                  {availableCountries.map((c) => (
-                    <Select.Option key={c.code} value={c.code} label={c.label}>
-                      {c.label}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </Box>
-              <Box display="flex" flexDirection="column" gap="1" minWidth="180px">
-                <Text>{t('translations.language')}</Text>
-                <Select
-                  name="newRuleLanguage"
-                  value={newRule.language}
-                  disabled={loadingOptions}
-                  onChange={(e) => setNewRule((prev) => ({ ...prev, language: e.target.value }))}
-                >
-                  <Select.Option value="" label={t('translations.selectLanguage')}>
-                    {t('translations.selectLanguage')}
-                  </Select.Option>
-                  {options.languages.map((lang) => (
-                    <Select.Option key={lang.code} value={lang.code} label={lang.label}>
-                      {lang.label}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </Box>
-              <Box display="flex" flexDirection="column" gap="1" minWidth="180px">
-                <Text>{t('translations.currency')}</Text>
-                <Select
-                  name="newRuleCurrency"
-                  value={newRule.currency}
-                  disabled={loadingOptions}
-                  onChange={(e) => setNewRule((prev) => ({ ...prev, currency: e.target.value }))}
-                >
-                  <Select.Option value="" label={t('translations.selectCurrency')}>
-                    {t('translations.selectCurrency')}
-                  </Select.Option>
-                  {options.currencies.map((cur) => (
-                    <Select.Option key={cur.code} value={cur.code} label={cur.label}>
-                      {cur.label}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </Box>
-              <Button
-                appearance="primary"
-                onClick={handleAddRule}
-                disabled={addingRule || !newRule.country || !newRule.language || !newRule.currency}
-              >
-                {addingRule ? t('common.loading') : t('translations.addRule')}
-              </Button>
-            </Box>
           </Box>
         </Card.Body>
       </Card>

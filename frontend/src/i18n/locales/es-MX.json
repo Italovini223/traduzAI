@@ -261,7 +261,14 @@
     "selectLanguage": "Selecciona el idioma",
     "selectCurrency": "Selecciona la moneda",
     "addRule": "Agregar regla",
-    "ruleAdded": "\u00a1Regla agregada con \u00e9xito!"
+    "ruleAdded": "\u00a1Regla agregada con \u00e9xito!",
+    "mapSelectHint": "Selecciona un pa\u00eds en el mapa para configurar la traducci\u00f3n y la moneda que se muestran en \u00e9l.",
+    "mapLegendEnabled": "Habilitado",
+    "mapLegendAvailable": "Disponible",
+    "mapLegendUnsupported": "No soportado",
+    "mapEnabledTag": "Habilitado",
+    "mapEnableOn": "Traducci\u00f3n y conversi\u00f3n habilitadas en este pa\u00eds",
+    "mapEnableOff": "Traducci\u00f3n y conversi\u00f3n deshabilitadas en este pa\u00eds"
   },
   "footer": {
     "rights": "Todos los derechos reservados",

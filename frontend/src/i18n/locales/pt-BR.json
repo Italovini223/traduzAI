@@ -265,7 +265,14 @@
     "selectLanguage": "Selecione o idioma",
     "selectCurrency": "Selecione a moeda",
     "addRule": "Adicionar regra",
-    "ruleAdded": "Regra adicionada com sucesso!"
+    "ruleAdded": "Regra adicionada com sucesso!",
+    "mapSelectHint": "Selecione um país no mapa para configurar a tradução e a moeda exibidas para ele.",
+    "mapLegendEnabled": "Habilitado",
+    "mapLegendAvailable": "Disponível",
+    "mapLegendUnsupported": "Não suportado",
+    "mapEnabledTag": "Habilitado",
+    "mapEnableOn": "Tradução e conversão habilitadas neste país",
+    "mapEnableOff": "Tradução e conversão desabilitadas neste país"
   },
   "footer": {
     "rights": "Todos os direitos reservados",
