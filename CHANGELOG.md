@@ -6,6 +6,14 @@ versionado em [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.9.6] - 2026-07-30
+
+### Adicionado
+
+- **Mapa mundi interativo para regras de tradução por país** — substitui a antiga tabela+dropdowns em `Settings.jsx` por `CountryMapSelector` (SVG clicável via `react-simple-maps` + `world-atlas`, offline, sem dependência de CDN externo). País sem regra aparece em azul, com regra habilitada em verde, não suportado em cinza. Clique no país abre painel lateral com Toggle habilitar + Select idioma/moeda pré-preenchidos automaticamente por país (novo `COUNTRY_DEFAULTS` em `localeOptions.js`, exposto em `GET /api/translations/options` como `defaults`).
+
+---
+
 ## [1.9.5] - 2026-06-26
 
 ### Adicionado
