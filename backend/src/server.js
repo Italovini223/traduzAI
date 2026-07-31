@@ -68,7 +68,7 @@ let widgetJsCache = null;
 app.get('/widget.js', (req, res) => {
   if (!widgetJsCache) {
     const raw = fs.readFileSync(path.join(__dirname, '../public/widget.js'), 'utf8');
-    widgetJsCache = raw.replace('__API_ORIGIN__', process.env.BACKEND_URL || '');
+    widgetJsCache = raw.replaceAll('__API_ORIGIN__', process.env.BACKEND_URL || '');
   }
   res.type('application/javascript').send(widgetJsCache);
 });
