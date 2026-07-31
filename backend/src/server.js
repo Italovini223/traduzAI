@@ -82,6 +82,7 @@ app.get('/health', (req, res) => {
     env: process.env.NODE_ENV || 'development',
     templateVersion: TEMPLATE_VERSION,
     templateRepo: TEMPLATE_REPO,
+    backendUrl: process.env.BACKEND_URL || null,
     timestamp: new Date().toISOString(),
   });
 });
