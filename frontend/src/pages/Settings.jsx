@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Card, Button, Text, Title, Tag, Alert, Spinner, Select, Toggle } from '@nimbus-ds/components';
+import { Box, Card, Button, Text, Title, Alert, Spinner, Select, Toggle } from '@nimbus-ds/components';
 import api from '../services/api.js';
 import CountryMapSelector from '../components/CountryMapSelector.jsx';
 
@@ -10,12 +10,11 @@ export default function Settings() {
   const [options, setOptions] = useState({ countries: [], languages: [], currencies: [], defaults: {} });
   const [loadingOptions, setLoadingOptions] = useState(true);
 
-  const [config, setConfig] = useState({ enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL', scriptId: null });
+  const [config, setConfig] = useState({ enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL' });
   const [rules, setRules] = useState([]);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [savingToggle, setSavingToggle] = useState(false);
   const [savingSource, setSavingSource] = useState(false);
-  const [registeringScript, setRegisteringScript] = useState(false);
 
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -52,7 +51,7 @@ export default function Settings() {
     setLoadingConfig(true);
     try {
       const res = await api.get('/api/translations/config');
-      setConfig(res.data?.config || { enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL', scriptId: null });
+      setConfig(res.data?.config || { enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL' });
       setRules(res.data?.rules || []);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -88,20 +87,6 @@ export default function Settings() {
       setError(err.response?.data?.error || err.message);
     } finally {
       setSavingSource(false);
-    }
-  };
-
-  const handleRegisterScript = async () => {
-    setRegisteringScript(true);
-    setError(null);
-    try {
-      const res = await api.post('/api/translations/register-script');
-      setConfig(res.data.config);
-      setSuccessMsg(t('translations.scriptRegistered'));
-    } catch (err) {
-      setError(err.response?.data?.error || err.message);
-    } finally {
-      setRegisteringScript(false);
     }
   };
 
@@ -168,15 +153,6 @@ export default function Settings() {
                 disabled={savingToggle}
                 onChange={handleToggleEnabled}
               />
-
-              <Box display="flex" gap="2" alignItems="center" flexWrap="wrap">
-                <Tag appearance={config.scriptId ? 'success' : 'warning'}>
-                  {config.scriptId ? t('translations.scriptOk') : t('translations.scriptMissing')}
-                </Tag>
-                <Button appearance="neutral" onClick={handleRegisterScript} disabled={registeringScript}>
-                  {registeringScript ? t('common.loading') : t('translations.registerScript')}
-                </Button>
-              </Box>
             </Box>
           )}
         </Card.Body>

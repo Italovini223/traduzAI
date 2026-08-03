@@ -2,7 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
 const { AppError } = require('../lib/errors');
-const { exchangeCodeForToken, fetchStoreInfo, registerScript } = require('../config/nuvemshop');
+const { exchangeCodeForToken, fetchStoreInfo } = require('../config/nuvemshop');
 const { requireAuth } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimiter');
 
@@ -70,23 +70,17 @@ router.get('/callback', authLimiter, async (req, res, next) => {
       create: { storeId: store.id, status: 'none' },
     });
 
-    // Registra o script de traducao/conversao de moeda na vitrine (best-effort:
-    // falha aqui nao pode quebrar o install; o lojista pode reinstalar o
-    // script depois na pagina de Configuracoes do app).
-    try {
-      const script = await registerScript(store.nuvemshopId, accessToken, process.env.NUVEMSHOP_SCRIPT_ID, {
-        store: store.nuvemshopId,
-      });
-      await prisma.storeTranslationConfig.upsert({
-        where: { storeId: store.id },
-        update: { scriptId: String(script.id) },
-        create: {
-          storeId: store.id,
-          scriptId: String(script.id),
-          baseCurrency: storeInfo.currency || storeInfo.main_currency || 'BRL',
-        },
-      });
-    } catch { /* best-effort — nao quebra o install */ }
+    // Script de traducao/conversao de moeda e auto-instalado pela Nuvemshop
+    // (cadastrado no Partners Portal) — nao precisa de associacao manual por
+    // loja. So garante que a config de traducao exista com a moeda padrao.
+    await prisma.storeTranslationConfig.upsert({
+      where: { storeId: store.id },
+      update: {},
+      create: {
+        storeId: store.id,
+        baseCurrency: storeInfo.currency || storeInfo.main_currency || 'BRL',
+      },
+    });
 
     // Generate JWT (kept for session use if needed)
     const token = jwt.sign(

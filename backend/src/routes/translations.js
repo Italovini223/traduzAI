@@ -2,7 +2,6 @@ const express = require('express');
 const prisma = require('../lib/prisma');
 const { AppError } = require('../lib/errors');
 const { requireAuth } = require('../middleware/auth');
-const { registerScript } = require('../config/nuvemshop');
 const {
   SUPPORTED_COUNTRIES,
   SUPPORTED_LANGUAGES,
@@ -41,7 +40,7 @@ router.get('/config', async (req, res, next) => {
     ]);
 
     res.json({
-      config: config || { enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL', scriptId: null },
+      config: config || { enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL' },
       rules,
     });
   } catch (err) {
@@ -152,38 +151,6 @@ router.delete('/rules/:id', async (req, res, next) => {
     res.status(204).end();
   } catch (err) {
     next(err);
-  }
-});
-
-/**
- * POST /api/translations/register-script — repete o registro do script na
- * Nuvemshop Script API (para quando o registro automatico no OAuth falhou).
- */
-router.post('/register-script', async (req, res, next) => {
-  try {
-    const store = req.store;
-    if (!store.accessToken) {
-      throw new AppError('Loja sem token de acesso Nuvemshop valido. Reinstale o app.', 400, 'NO_ACCESS_TOKEN');
-    }
-
-    if (!process.env.NUVEMSHOP_SCRIPT_ID) {
-      throw new AppError('NUVEMSHOP_SCRIPT_ID nao configurado no backend.', 500, 'MISSING_SCRIPT_ID');
-    }
-
-    const script = await registerScript(store.nuvemshopId, store.accessToken, process.env.NUVEMSHOP_SCRIPT_ID, {
-      store: store.nuvemshopId,
-    });
-
-    const config = await prisma.storeTranslationConfig.upsert({
-      where: { storeId: store.id },
-      update: { scriptId: String(script.id) },
-      create: { storeId: store.id, scriptId: String(script.id) },
-    });
-
-    res.json({ config });
-  } catch (err) {
-    if (err instanceof AppError) return next(err);
-    next(new AppError('Falha ao registrar script na Nuvemshop.', 502, 'SCRIPT_REGISTRATION_FAILED'));
   }
 });
 

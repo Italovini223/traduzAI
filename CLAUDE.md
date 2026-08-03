@@ -25,11 +25,15 @@ nuvempro-app-template/
 │   ├── src/
 │   │   ├── server.js           # Entry point, middlewares, rotas
 │   │   ├── config/
-│   │   │   └── stripe.js       # StripeService (checkout, cancel, status, portal)
+│   │   │   ├── stripe.js       # StripeService (checkout, cancel, status, portal)
+│   │   │   ├── deepl.js        # DeepLService — tradução em lote, nunca lança
+│   │   │   └── exchangeRate.js # ExchangeRateService — câmbio, cache 12h, nunca lança
 │   │   ├── lib/
 │   │   │   ├── version.js      # TEMPLATE_VERSION — bumpar a cada release
 │   │   │   ├── prisma.js       # Instância Prisma singleton
-│   │   │   └── errors.js       # AppError class
+│   │   │   ├── errors.js       # AppError class
+│   │   │   ├── priceParser.js  # regex de detecção de preço (cópia manual em widget.js)
+│   │   │   └── localeOptions.js # países/idiomas/moedas suportados (fonte única)
 │   │   ├── middleware/
 │   │   │   ├── auth.js         # requireAuth (JWT Nuvemshop)
 │   │   │   └── rateLimiter.js  # 5 níveis de rate limiting
@@ -39,7 +43,9 @@ nuvempro-app-template/
 │   │   │   ├── webhook.js      # Stripe webhooks
 │   │   │   ├── support.js      # GET /api/support (FAQs + vídeo + whatsapp — público)
 │   │   │   ├── profile.js      # Perfil da loja
-│   │   │   └── terms.js        # Termos de uso
+│   │   │   ├── terms.js        # Termos de uso
+│   │   │   ├── translations.js # Config/regras de tradução (app iframe, autenticado)
+│   │   │   └── storefront.js   # /storefront/config|rules|translate (público, vitrine)
 │   │   └── admin/
 │   │       ├── routes/
 │   │       │   ├── adminPlans.js        # CRUD planos + verify-stripe (auto-heal)
@@ -52,6 +58,8 @@ nuvempro-app-template/
 │   │       │   └── adminCommissions.js
 │   │       └── services/
 │   │           └── adminPlanService.js  # syncToStripe (idempotente), find-or-create
+│   ├── public/
+│   │   └── widget.js           # Script da vitrine (vanilla JS, sem build) — ver seção própria
 │   └── prisma/
 │       ├── schema.prisma
 │       └── seed-admin.js
@@ -61,6 +69,7 @@ nuvempro-app-template/
 │       │   └── NexoProvider.jsx    # Auth Nexo SDK, billingStatus, termsAccepted
 │       ├── pages/
 │       │   ├── BillingPage.jsx     # Planos, checkout, cancelar, faturas, parceiro
+│       │   ├── Settings.jsx        # Config de tradução/moeda + regras por país
 │       │   ├── OnboardingPage.jsx
 │       │   └── ...
 │       ├── components/
@@ -122,7 +131,17 @@ PARTNERS_API_KEY=nv_live_...
 # Notificação de tickets de suporte por e-mail (opcional — best-effort)
 RESEND_API_KEY=re_...
 SUPPORT_FROM_EMAIL=Suporte <suporte@exemplo.com>   # fallback: APP_EMAIL
+
+# Tradução automática + conversão de moeda da vitrine (traduzAI)
+DEEPL_API_KEY=...            # opcional — sem chave, widget não traduz (falha silenciosa)
+EXCHANGERATE_API_KEY=...     # opcional — sem chave, widget não converte preço (falha silenciosa)
 ```
+
+**`NUVEMSHOP_SCRIPT_ID`** (ainda presente em `.env.example`) **não é mais usado
+pelo código** — era pra associação manual de script por loja (`POST /scripts`),
+removida porque o script é auto-instalado (Nuvemshop rejeita essa associação
+com 422). Só serve hoje como anotação de qual script foi cadastrado no
+Partners Portal; pode remover do `.env` sem quebrar nada.
 
 ---
 
@@ -144,6 +163,10 @@ SUPPORT_FROM_EMAIL=Suporte <suporte@exemplo.com>   # fallback: APP_EMAIL
 | `StoreProfile`    | Dados extras da loja (JSON livre)                  |
 | `TermsVersion`    | Versões dos termos de uso                          |
 | `TermsAcceptance` | Aceites dos termos por loja                        |
+| `StoreTranslationConfig` | 1:1 com Store. `enabled`, `sourceLanguage`, `baseCurrency` |
+| `StoreLocaleRule` | Por loja+país. `country`, `language`, `currency` — unique em `[storeId, country]` |
+| `TranslationCache` | **Global** (não por loja). `sourceHash` (sha256), `sourceLang`, `targetLang`, `translatedText` — sem expiração |
+| `ExchangeRate`    | **Global**. `baseCurrency`+`quoteCurrency` únicos, `rate`, `fetchedAt` — TTL de 12h no código, não no schema |
 
 ### Campos de parceiro no `Store`
 
@@ -367,6 +390,139 @@ Módulo padrão do template (v1.9.0+). Modelos `SupportTicket` (1:N) + `SupportM
 - **Lojista → recebe** (v1.9.3): fire-and-forget em `POST /admin-api/support/:id/reply` (helper `notifyStoreOfReply` em `admin/routes/adminSupport.js`), enviando ao `Store.email` com CTA via `FRONTEND_URL`.
 - **Opt-out por loja** (v1.9.4): o lojista pode desativar os e-mails de resposta no toggle do sidebar de Suporte. Guardado em `StoreProfile.data.supportEmailOptOut` (default `false` = recebe). Endpoints `GET`/`PUT /api/support/preferences` (`{ emailNotifications }`); `notifyStoreOfReply` consulta a flag e não envia se desativada.
 - Envs: `RESEND_API_KEY` (re_...) e `SUPPORT_FROM_EMAIL` (fallback `APP_EMAIL`). Sem chave configurada, o app funciona normalmente — apenas não envia e-mail.
+
+---
+
+## Storefront: Tradução Automática + Conversão de Moeda
+
+Feature central do traduzAI — diferente do resto do template, **não roda no
+iframe admin**: roda no navegador do comprador anônimo, na vitrine pública,
+traduzindo texto e convertendo preço exibido conforme o país do visitante
+(ou seleção manual).
+
+### Arquitetura ponta a ponta
+
+```
+1. Script cadastrado no Partners Portal (auto-instalado, evento onload) —
+   Nuvemshop injeta em TODA página de vitrine de TODA loja com o app:
+   <script src="https://apps-scripts.tiendanube.com/traduzai/.../N.js?versionId=...&store=ID">
+
+2. Essa URL é um proxy/CDN (CloudFront) da Nuvemshop na frente do nosso
+   próprio GET /widget.js (server.js serve backend/public/widget.js,
+   substituindo o placeholder da URL do backend antes de enviar)
+
+3. widget.js roda no navegador do comprador:
+   a. Descobre STORE_ID via window.LS.store.id (global que a Nuvemshop
+      injeta em toda página de vitrine — confirmado em produção; fallback:
+      query string ?store= da própria tag <script>)
+   b. GET /storefront/config?store=X[&country=XX] — geoip por IP detecta
+      país (ou ?country= força, usado em teste/seletor manual) → retorna
+      idioma/moeda alvo SE existir StoreLocaleRule pra esse país
+   c. Se active:true — percorre nós de texto visíveis (TreeWalker), manda em
+      lote pra POST /storefront/translate, aplica conversão de preço via
+      regex (lógica de backend/src/lib/priceParser.js copiada manualmente em
+      widget.js — sem bundler, mudança ali exige replicar aqui também)
+   d. MutationObserver reaplica em conteúdo inserido depois (carrinho, SPA)
+   e. Seletor manual de bandeiras (buildCountryPicker): GET /storefront/rules
+      lista países configurados pelo lojista; clique força o país via a
+      mesma rota /config, sem depender do geoip
+```
+
+### Rotas públicas — sem auth (`routes/storefront.js`)
+
+CORS aberto (`origin: *`) especificamente pra `/storefront/*` — vitrine é
+domínio de loja desconhecido de antemão, requisição sem cookies/credenciais.
+
+| Rota | Uso |
+|---|---|
+| `GET /storefront/config?store=X[&country=XX]` | Resolve idioma/moeda/taxa alvo pro visitante |
+| `GET /storefront/rules?store=X` | Lista países com regra configurada (seletor de bandeiras) |
+| `POST /storefront/translate` | Traduz lote de textos, com cache |
+
+### Rotas autenticadas — app iframe (`routes/translations.js`)
+
+- `GET /api/translations/options` — países/idiomas/moedas suportados (dropdowns da Settings.jsx)
+- `GET/PUT /api/translations/config` — liga/desliga a feature, idioma/moeda de origem da loja
+- `POST/PUT/DELETE /api/translations/rules` — regras país → idioma/moeda (uma por país, `StoreLocaleRule`)
+
+### Cache — o que evita gastar API paga a cada load de página
+
+Cache é **Postgres via Prisma (não Redis, não memória de processo)** —
+persistente entre restarts, e **global entre lojas** (o mesmo texto/par de
+moeda serve pra qualquer tenant, já que texto e câmbio não são sensíveis a
+tenant).
+
+| O quê | Tabela | Chave | TTL |
+|---|---|---|---|
+| Tradução de texto | `TranslationCache` | `sha256(texto)` + `sourceLang` + `targetLang` | **sem expiração** — texto igual = tradução igual pra sempre |
+| Taxa de câmbio | `ExchangeRate` | `baseCurrency` + `quoteCurrency` | **12h** (`CACHE_TTL_MS` em `config/exchangeRate.js`) |
+
+Fluxo em `POST /storefront/translate`: hash cada texto recebido, busca no
+`TranslationCache` os hashes já conhecidos, chama `DeepLService.translateBatch`
+**só** pros textos que não bateram no cache (`missTexts`), grava o resultado
+novo no cache antes de responder.
+
+Fluxo em `ExchangeRateService.getRate`: se tem linha fresca (< 12h) no
+`ExchangeRate`, usa ela sem chamar a API externa. Se expirou (ou não existe),
+chama `exchangerate-api.com` e faz upsert do novo valor. **Se a API externa
+falhar por qualquer motivo, usa o cache existente mesmo expirado** em vez de
+quebrar a exibição de preço.
+
+Ambos os serviços (`config/deepl.js`, `config/exchangeRate.js`) seguem o
+mesmo princípio do `StripeService`: **nunca lançam**. Sem chave configurada
+ou com a API externa fora do ar, retornam o texto/preço original — o widget
+degrada graciosamente, nunca quebra a vitrine.
+
+**Custo real de API**: cada texto único do catálogo consome DeepL **uma
+única vez na vida útil daquele texto exato** (novo texto = novo hash = nova
+chamada). Câmbio consome no máximo 1x/12h por par de moeda, independente de
+quantas lojas ou visitantes. Um load de página comum, na prática, não bate
+em nenhuma API externa — é leitura de banco.
+
+### Seletor manual de país (bandeiras)
+
+Fallback do geoip por IP — `geoip-lite` (banco MaxMind offline, empacotado no
+deploy) é impreciso justamente pra IP de VPN/datacenter (testado e
+confirmado: IP de VPN real localizado em Portland/US não foi reconhecido
+como país nenhum); IP residencial de comprador real é bem mais confiável.
+
+Renderizado por `buildCountryPicker` em `public/widget.js`: barra fixa no
+canto inferior esquerdo (`position:fixed; bottom:16px; left:16px`), bandeiras
+via `https://flagcdn.com` (imagem, sem asset local nem build step — emoji de
+bandeira foi descartado por render inconsistente em Windows/Chrome). O
+container tem `data-notranslate` (não `id`/classe) pra não se auto-traduzir.
+
+**Preservação do texto original**: `ORIGINAL_TEXT` (WeakMap) guarda o
+`nodeValue` de cada nó de texto na primeira vez que é visto. Toda tradução
+subsequente — troca de bandeira, re-seleção — usa esse original como fonte,
+nunca o texto já traduzido em tela (evita dupla-tradução e dupla-conversão de
+preço ao alternar países repetidamente). `restoreOriginals()` devolve o texto
+original quando a bandeira é desmarcada (clique de novo) ou quando o país
+selecionado resolve pra "sem diferença" (mesmo idioma/moeda da loja).
+
+`?country=XX` na URL da própria vitrine (não do script) força o país inicial
+— usado pra testar sem depender do geoip real; a Nuvemshop não permite isso
+via query da tag `<script>` em modo auto-instalado.
+
+### Limitações da plataforma Nuvemshop (fora do nosso controle)
+
+- **CDN do script cacheado por 1 ano**: `apps-scripts.tiendanube.com`
+  responde `Cache-Control: public, max-age=31536000, immutable`. Deploy do
+  backend NÃO muda o que a loja real recebe — só muda quando a Nuvemshop
+  gera um `versionId` novo pro script. Confirmado por teste: nem re-salvar o
+  script nem criar/ativar uma nova versão no Partners Portal propagou na
+  hora — há fila de revisão própria da Nuvemshop, de duração indeterminada.
+  **Não re-diagnosticar como bug** se um deploy de `widget.js` não aparecer
+  de imediato numa loja real.
+- **Evento do script**: pode ser exigido `onfirstinteraction` (não `onload`)
+  inicialmente por política de revisão da plataforma — nesse caso o widget só
+  carrega depois do primeiro clique/scroll do comprador (flash de conteúdo
+  original até lá). Trocar pra `onload` no Partners Portal depois de aprovado.
+- **Script auto-instalado não aceita associação manual por loja**
+  (`POST /scripts` retorna 422 "Script is auto installed. Does not support
+  store association") — por isso `registerScript`/`deleteScript` foram
+  removidos do código; a Nuvemshop mesma injeta `?store=<id>` na URL do
+  script mesmo em modo auto-instalado (confirmado em produção).
 
 ---
 
@@ -697,6 +853,10 @@ cd backend && npm test
 - **`Box` component Nimbus DS**: NÃO suporta `aspectRatio` CSS — usar `div` nativo com `style={{ aspectRatio: '16/9' }}` para vídeos e containers com proporção fixa.
 - **Vercel + Cloudflare**: não usar proxy (laranja) para domínios do Vercel — causa conflito SSL e double-proxy. Usar grey cloud (DNS only) para Vercel; pode usar proxy para Railway.
 - **Railway project ID**: o ID correto do projeto `nuvempro-app-template` é `e1d7d40f-2909-456b-992f-d9ae28753536` (não confundir com IDs de outros projetos como App-PostaAI, App-RecuperaJa).
+- **traduzAI usa projeto Railway próprio** (`luminous-enjoyment`), não o `e1d7d40f...` do template genérico — CLI já vem linkado localmente (`railway status` mostra serviço `backend`, ambiente `production`). Deploy direto via `railway up --service backend` funciona sem precisar de `RAILWAY_TOKEN`/GraphQL manual.
+- **`TranslationCache`/`ExchangeRate` são globais**, não por `storeId` — ao contrário de quase todo outro modelo do template, não isolar por tenant aqui é intencional (texto/câmbio não são sensíveis a loja).
+- **`geoip-lite` não reconhece IP de VPN/datacenter de forma confiável** — testado com VPN real (IP confirmado via serviço externo como Portland/US) e retornou sem país. Não é bug do app; ver seção "Storefront: Tradução Automática" pro fallback (seletor manual de bandeiras).
+- **CDN da Nuvemshop cacheia o script da vitrine por 1 ano** (`immutable`) — mudança em `public/widget.js` só chega em loja real depois que a Nuvemshop gera novo `versionId` (fila de revisão deles, sem prazo). Ver seção própria.
 
 ---
 

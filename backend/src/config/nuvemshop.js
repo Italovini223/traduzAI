@@ -48,37 +48,10 @@ async function fetchStoreInfo(storeNuvemshopId, accessToken) {
   return response.data;
 }
 
-/**
- * Associate a previously-registered script (created in the Partners Portal,
- * NUVEMSHOP_SCRIPT_ID) to a store via the Scripts API. `queryParams` values
- * are appended by Nuvemshop as URL query params when it serves the script
- * on the storefront (e.g. { store: '123' } -> "...?store=123").
- * Returns the created script-store association (includes its own id, used
- * later for deleteScript).
- */
-async function registerScript(storeNuvemshopId, accessToken, scriptId, queryParams) {
-  const client = createNuvemshopClient(storeNuvemshopId, accessToken);
-  const response = await client.post('/scripts', {
-    script_id: Number(scriptId),
-    query_params: JSON.stringify(queryParams || {}),
-  });
-  return response.data;
-}
-
-/**
- * Remove a previously registered storefront script.
- */
-async function deleteScript(storeNuvemshopId, accessToken, scriptId) {
-  const client = createNuvemshopClient(storeNuvemshopId, accessToken);
-  await client.delete(`/scripts/${scriptId}`);
-}
-
 module.exports = {
   exchangeCodeForToken,
   createNuvemshopClient,
   fetchStoreInfo,
-  registerScript,
-  deleteScript,
   NUVEMSHOP_AUTH_URL,
   NUVEMSHOP_API_BASE,
 };

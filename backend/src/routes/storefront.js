@@ -5,7 +5,7 @@ const prisma = require('../lib/prisma');
 const { AppError } = require('../lib/errors');
 const { DeepLService } = require('../config/deepl');
 const { ExchangeRateService } = require('../config/exchangeRate');
-const { isValidLanguage } = require('../lib/localeOptions');
+const { isValidLanguage, SUPPORTED_COUNTRIES } = require('../lib/localeOptions');
 
 const router = express.Router();
 
@@ -16,9 +16,48 @@ const router = express.Router();
 const MAX_TEXTS_PER_REQUEST = 200;
 const MAX_TEXT_LENGTH = 2000;
 
+const COUNTRY_LABELS = SUPPORTED_COUNTRIES.reduce((acc, c) => {
+  acc[c.code] = c.label;
+  return acc;
+}, {});
+
 function sha256(text) {
   return crypto.createHash('sha256').update(text).digest('hex');
 }
+
+/**
+ * GET /storefront/rules?store={nuvemshopId}
+ * Lista os paises com regra de idioma/moeda configurada pelo lojista, para o
+ * widget renderizar o seletor manual de bandeiras (fallback do geoip por IP).
+ */
+router.get('/rules', async (req, res, next) => {
+  try {
+    const { store: nuvemshopId } = req.query;
+    if (!nuvemshopId) {
+      throw new AppError('Parametro store obrigatorio.', 400, 'MISSING_STORE');
+    }
+
+    const store = await prisma.store.findUnique({
+      where: { nuvemshopId: String(nuvemshopId) },
+      include: { translationConfig: true, localeRules: true },
+    });
+
+    if (!store || !store.translationConfig?.enabled) {
+      return res.json({ countries: [] });
+    }
+
+    const countries = store.localeRules.map((rule) => ({
+      code: rule.country,
+      name: COUNTRY_LABELS[rule.country] || rule.country,
+      language: rule.language,
+      currency: rule.currency,
+    }));
+
+    res.json({ countries });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /**
  * GET /storefront/config?store={nuvemshopId}
