@@ -48,10 +48,25 @@ async function fetchStoreInfo(storeNuvemshopId, accessToken) {
   return response.data;
 }
 
+/**
+ * Garante que a loja tenha uma subscription do webhook order/paid (fonte do
+ * mapa/gráfico de vendas por país no Dashboard) — cria só se ainda não
+ * existir, pra não duplicar subscription a cada reinstalação.
+ */
+async function ensureOrderPaidWebhook(storeNuvemshopId, accessToken, webhookUrl) {
+  const client = createNuvemshopClient(storeNuvemshopId, accessToken);
+  const { data: existing } = await client.get('/webhooks');
+  const alreadyRegistered = Array.isArray(existing) && existing.some((w) => w.event === 'order/paid' && w.url === webhookUrl);
+  if (alreadyRegistered) return;
+
+  await client.post('/webhooks', { event: 'order/paid', url: webhookUrl });
+}
+
 module.exports = {
   exchangeCodeForToken,
   createNuvemshopClient,
   fetchStoreInfo,
+  ensureOrderPaidWebhook,
   NUVEMSHOP_AUTH_URL,
   NUVEMSHOP_API_BASE,
 };

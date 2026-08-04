@@ -2,7 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
 const { AppError } = require('../lib/errors');
-const { exchangeCodeForToken, fetchStoreInfo } = require('../config/nuvemshop');
+const { exchangeCodeForToken, fetchStoreInfo, ensureOrderPaidWebhook } = require('../config/nuvemshop');
 const { requireAuth } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimiter');
 
@@ -81,6 +81,14 @@ router.get('/callback', authLimiter, async (req, res, next) => {
         baseCurrency: storeInfo.currency || storeInfo.main_currency || 'BRL',
       },
     });
+
+    // Webhook order/paid (fonte do mapa/gráfico de vendas por país no
+    // Dashboard) — best-effort: falha aqui não pode quebrar o install.
+    if (process.env.BACKEND_URL) {
+      try {
+        await ensureOrderPaidWebhook(store.nuvemshopId, accessToken, `${process.env.BACKEND_URL}/webhooks/order/paid`);
+      } catch { /* best-effort — nao quebra o install */ }
+    }
 
     // Generate JWT (kept for session use if needed)
     const token = jwt.sign(

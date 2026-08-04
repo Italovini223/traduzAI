@@ -30,6 +30,7 @@ model Store {
   supportTickets    SupportTicket[]
   translationConfig StoreTranslationConfig?
   localeRules       StoreLocaleRule[]
+  orderRecords      OrderRecord[]
   @@map("stores")
 }
 
@@ -298,4 +299,22 @@ model ExchangeRate {
   fetchedAt     DateTime @default(now())
   @@unique([baseCurrency, quoteCurrency])
   @@map("exchange_rates")
+}
+
+// Pedidos pagos, gravados via webhook order/paid — fonte do mapa/gráfico de
+// vendas por país no Dashboard. Populado de forma best-effort (nunca bloqueia
+// o webhook); ausência de linha != ausência de venda se o webhook falhar.
+model OrderRecord {
+  id               Int      @id @default(autoincrement())
+  storeId          Int
+  store            Store    @relation(fields: [storeId], references: [id])
+  nuvemshopOrderId String
+  country          String?  // ISO 3166-1 alpha-2 — shipping_address, fallback billing_address
+  amount           Float    // total_paid_by_customer
+  currency         String
+  paidAt           DateTime
+  createdAt        DateTime @default(now())
+  @@unique([storeId, nuvemshopOrderId])
+  @@index([storeId, paidAt])
+  @@map("order_records")
 }

@@ -98,6 +98,7 @@ const profileRouter = require('./routes/profile');
 const supportRouter = require('./routes/support');
 const nuvemshopWebhooksRouter = require('./routes/nuvemshopWebhooks');
 const translationsRouter = require('./routes/translations');
+const analyticsRouter = require('./routes/analytics');
 const storefrontRouter = require('./routes/storefront');
 
 app.use('/auth', authRouter);
@@ -106,6 +107,7 @@ app.use('/api/terms', termsRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/support', supportRouter);
 app.use('/api/translations', translationsRouter);
+app.use('/api/analytics', analyticsRouter);
 app.use('/webhooks', nuvemshopWebhooksRouter);
 
 // ─── Storefront (widget publico) — chamado por compradores anonimos em

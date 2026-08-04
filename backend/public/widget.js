@@ -162,6 +162,84 @@
     });
   }
 
+  // ─── Atributos traduzíveis: placeholder de input/textarea e o texto de
+  // botões renderizados como <input type="submit|button|reset" value="...">
+  // (padrão comum em temas Nuvemshop pra "Comprar"/"Iniciar Compra"/etc).
+  // Não inclui inputs de texto/email/hidden — só os que exibem o value como
+  // rótulo visível, nunca como dado digitado/enviado pelo comprador.
+  var ORIGINAL_ATTR = new WeakMap();
+  var KNOWN_ATTR_ELS = [];
+  var BUTTON_INPUT_TYPES = { submit: 1, button: 1, reset: 1 };
+  var ATTR_SELECTOR = '[placeholder], input[type="submit"], input[type="button"], input[type="reset"]';
+
+  function rememberOriginalAttr(el, attr) {
+    var entry = ORIGINAL_ATTR.get(el);
+    if (!entry) {
+      entry = {};
+      ORIGINAL_ATTR.set(el, entry);
+      KNOWN_ATTR_ELS.push(el);
+    }
+    if (!(attr in entry)) entry[attr] = el.getAttribute(attr);
+    return entry[attr];
+  }
+
+  function restoreOriginalAttrs() {
+    KNOWN_ATTR_ELS.forEach(function (el) {
+      var entry = ORIGINAL_ATTR.get(el);
+      if (!entry) return;
+      Object.keys(entry).forEach(function (attr) { el.setAttribute(attr, entry[attr]); });
+    });
+  }
+
+  function collectTranslatableAttrs(root) {
+    var elements = [];
+    if (root.matches && root.matches(ATTR_SELECTOR)) elements.push(root);
+    if (root.querySelectorAll) {
+      var found = root.querySelectorAll(ATTR_SELECTOR);
+      for (var i = 0; i < found.length; i++) elements.push(found[i]);
+    }
+
+    var items = [];
+    elements.forEach(function (el) {
+      if (el.closest && el.closest('[data-notranslate]')) return;
+      var placeholder = el.getAttribute('placeholder');
+      if (placeholder && placeholder.trim()) items.push({ el: el, attr: 'placeholder' });
+      if (el.tagName === 'INPUT' && BUTTON_INPUT_TYPES[(el.getAttribute('type') || '').toLowerCase()]) {
+        var val = el.getAttribute('value');
+        if (val && val.trim()) items.push({ el: el, attr: 'value' });
+      }
+    });
+    return items;
+  }
+
+  function applyToAttrs(items, config) {
+    var texts = items.map(function (item) { return rememberOriginalAttr(item.el, item.attr); });
+    if (texts.length === 0) return;
+
+    fetch(API_ORIGIN + '/storefront/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        store: STORE_ID,
+        texts: texts,
+        sourceLang: config.sourceLanguage,
+        targetLang: config.targetLanguage,
+      }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var translations = data.translations || texts;
+        items.forEach(function (item, i) {
+          var translated = translations[i] || texts[i];
+          if (config.rate && config.rate !== 1) {
+            translated = replacePricesInText(translated, config.rate, config.targetCurrency);
+          }
+          item.el.setAttribute(item.attr, translated);
+        });
+      })
+      .catch(function () { /* falha silenciosa */ });
+  }
+
   // ─── Tradução + conversão de preço, em lote ───────────────────────────────
   function applyToNodes(nodes, config) {
     var texts = nodes.map(rememberOriginal);
@@ -196,6 +274,11 @@
     for (var i = 0; i < nodes.length; i += TEXT_BATCH_SIZE) {
       applyToNodes(nodes.slice(i, i + TEXT_BATCH_SIZE), config);
     }
+
+    var attrItems = collectTranslatableAttrs(document.body);
+    for (var j = 0; j < attrItems.length; j += TEXT_BATCH_SIZE) {
+      applyToAttrs(attrItems.slice(j, j + TEXT_BATCH_SIZE), config);
+    }
   }
 
   // ─── País/config atualmente aplicado (geoip OU seleção manual) ───────────
@@ -214,13 +297,19 @@
       clearTimeout(pending);
       pending = setTimeout(function () {
         var newNodes = [];
+        var newAttrItems = [];
         mutations.forEach(function (m) {
           m.addedNodes.forEach(function (added) {
-            if (added.nodeType === 1) newNodes = newNodes.concat(collectTextNodes(added));
-            else if (added.nodeType === 3 && added.nodeValue && added.nodeValue.trim()) newNodes.push(added);
+            if (added.nodeType === 1) {
+              newNodes = newNodes.concat(collectTextNodes(added));
+              newAttrItems = newAttrItems.concat(collectTranslatableAttrs(added));
+            } else if (added.nodeType === 3 && added.nodeValue && added.nodeValue.trim()) {
+              newNodes.push(added);
+            }
           });
         });
         if (newNodes.length > 0) applyToNodes(newNodes, CURRENT_CONFIG);
+        if (newAttrItems.length > 0) applyToAttrs(newAttrItems, CURRENT_CONFIG);
       }, 300);
     });
     observer.observe(document.body, { childList: true, subtree: true });
@@ -232,6 +321,7 @@
       translateVisibleNodes(CURRENT_CONFIG);
     } else {
       restoreOriginals();
+      restoreOriginalAttrs();
     }
   }
 
@@ -239,12 +329,47 @@
     return fetch(url).then(function (r) { return r.json(); });
   }
 
-  // ─── Seletor manual de país (bandeiras) — fallback do geoip por IP ────────
-  function buildCountryPicker(countries, initialCode) {
-    if (!countries || countries.length === 0) return;
+  // ─── Persistência da escolha manual entre páginas ─────────────────────────
+  // Sem isso, a seleção de bandeira só existe em memória daquele carregamento
+  // — ao navegar pra outra página ou recarregar, a tradução "desliga" mesmo
+  // sem o comprador ter pedido. localStorage guarda a escolha; toda página
+  // nova restaura automaticamente antes do geoip entrar em ação. HOME_SENTINEL
+  // marca "escolheu ficar no idioma nativo" como escolha explícita também —
+  // sem isso, o geoip poderia re-traduzir na página seguinte mesmo depois do
+  // comprador ter clicado pra voltar ao original.
+  var STORAGE_KEY = 'traduzai_country';
+  var HOME_SENTINEL = '__home__';
 
-    var activeCode = null;
+  function getPersistedCountry() {
+    try { return window.localStorage.getItem(STORAGE_KEY); } catch (e) { return null; }
+  }
+
+  function persistCountry(code) {
+    try { window.localStorage.setItem(STORAGE_KEY, code || HOME_SENTINEL); } catch (e) { /* ignore — modo privado/storage bloqueado */ }
+  }
+
+  // ─── Seletor manual de país (bandeiras) — fallback do geoip por IP ────────
+  function makeFlagButton(code, title) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.title = title;
+    btn.style.cssText = 'border:2px solid transparent;border-radius:4px;padding:0;' +
+      'width:28px;height:20px;cursor:pointer;background:none;overflow:hidden;';
+
+    var img = document.createElement('img');
+    img.src = 'https://flagcdn.com/28x21/' + code.toLowerCase() + '.png';
+    img.alt = code;
+    img.style.cssText = 'width:100%;height:100%;display:block;';
+    btn.appendChild(img);
+    return btn;
+  }
+
+  function buildCountryPicker(countries, initialCode, home) {
+    if ((!countries || countries.length === 0) && !home) return;
+
+    var activeCode = null; // null = idioma/moeda de origem (home) em exibição
     var buttons = {};
+    var homeBtn = null;
 
     var container = document.createElement('div');
     container.setAttribute('data-notranslate', '');
@@ -252,68 +377,85 @@
       'display:flex;gap:6px;background:#fff;padding:6px;border-radius:8px;' +
       'box-shadow:0 2px 8px rgba(0,0,0,.2);font-family:sans-serif;';
 
+    function setActiveStyle(btn, isActive) {
+      btn.style.borderColor = isActive ? '#1a73e8' : 'transparent';
+      btn.style.boxShadow = isActive ? '0 0 0 2px rgba(26,115,232,0.35)' : 'none';
+      btn.style.opacity = isActive ? '1' : '0.6';
+    }
+
     function highlight(code) {
       activeCode = code;
+      if (homeBtn) setActiveStyle(homeBtn, code === null);
       Object.keys(buttons).forEach(function (key) {
-        buttons[key].style.borderColor = key === code ? '#1a73e8' : 'transparent';
+        setActiveStyle(buttons[key], key === code);
       });
+    }
+
+    function goHome() {
+      persistCountry(null);
+      highlight(null);
+      applyCountry({ active: false });
     }
 
     function selectCountry(code) {
       if (!code) {
-        highlight(null);
-        applyCountry({ active: false });
+        goHome();
         return;
       }
       fetchJson(API_ORIGIN + '/storefront/config?store=' + encodeURIComponent(STORE_ID) + '&country=' + encodeURIComponent(code))
         .then(function (config) {
+          persistCountry(code);
           highlight(code);
           applyCountry(config);
         })
         .catch(function () { /* falha silenciosa */ });
     }
 
+    if (home) {
+      homeBtn = makeFlagButton(home.code, home.name + ' (idioma original da loja)');
+      homeBtn.addEventListener('click', goHome);
+      container.appendChild(homeBtn);
+
+      if (countries && countries.length > 0) {
+        var separator = document.createElement('div');
+        separator.style.cssText = 'width:1px;align-self:stretch;background:#ddd;margin:2px 1px;';
+        container.appendChild(separator);
+      }
+    }
+
     countries.forEach(function (c) {
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.title = c.name;
-      btn.style.cssText = 'border:2px solid transparent;border-radius:4px;padding:0;' +
-        'width:28px;height:20px;cursor:pointer;background:none;overflow:hidden;';
-
-      var img = document.createElement('img');
-      img.src = 'https://flagcdn.com/28x21/' + c.code.toLowerCase() + '.png';
-      img.alt = c.code;
-      img.style.cssText = 'width:100%;height:100%;display:block;';
-      btn.appendChild(img);
-
+      var btn = makeFlagButton(c.code, c.name);
       btn.addEventListener('click', function () {
         selectCountry(c.code === activeCode ? null : c.code);
       });
-
       buttons[c.code] = btn;
       container.appendChild(btn);
     });
 
     document.body.appendChild(container);
+    highlight(null);
 
-    if (initialCode) selectCountry(initialCode);
+    if (initialCode === HOME_SENTINEL) goHome();
+    else if (initialCode) selectCountry(initialCode);
   }
 
   function init() {
     ensureObserver();
 
     // ?country=US na URL da vitrine (não do script) força o país inicial —
-    // útil pra teste manual, contornando geoip por IP.
+    // útil pra teste manual, contornando geoip por IP. Prioridade: URL >
+    // escolha manual persistida (localStorage) > geoip automático.
     var countryOverride = null;
     try { countryOverride = new URL(window.location.href).searchParams.get('country'); } catch (e) { /* ignore */ }
+    var effectiveInitial = countryOverride || getPersistedCountry();
 
     fetchJson(API_ORIGIN + '/storefront/rules?store=' + encodeURIComponent(STORE_ID))
       .then(function (data) {
-        buildCountryPicker((data && data.countries) || [], countryOverride);
+        buildCountryPicker((data && data.countries) || [], effectiveInitial, data && data.home);
       })
       .catch(function () { /* falha silenciosa */ });
 
-    if (countryOverride) return; // seletor já aplica a config pro país forçado
+    if (effectiveInitial) return; // seletor já aplica a config pro país forçado/persistido
 
     fetchJson(API_ORIGIN + '/storefront/config?store=' + encodeURIComponent(STORE_ID))
       .then(applyCountry)

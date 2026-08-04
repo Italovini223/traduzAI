@@ -167,6 +167,7 @@ Partners Portal; pode remover do `.env` sem quebrar nada.
 | `StoreLocaleRule` | Por loja+país. `country`, `language`, `currency` — unique em `[storeId, country]` |
 | `TranslationCache` | **Global** (não por loja). `sourceHash` (sha256), `sourceLang`, `targetLang`, `translatedText` — sem expiração |
 | `ExchangeRate`    | **Global**. `baseCurrency`+`quoteCurrency` únicos, `rate`, `fetchedAt` — TTL de 12h no código, não no schema |
+| `OrderRecord`     | Por loja. Pedido pago gravado via webhook `order/paid` — `country`, `amount`, `currency`, `paidAt`. Unique em `[storeId, nuvemshopOrderId]` |
 
 ### Campos de parceiro no `Store`
 
@@ -523,6 +524,90 @@ via query da tag `<script>` em modo auto-instalado.
   store association") — por isso `registerScript`/`deleteScript` foram
   removidos do código; a Nuvemshop mesma injeta `?store=<id>` na URL do
   script mesmo em modo auto-instalado (confirmado em produção).
+- **Checkout NÃO é traduzível com a arquitetura atual — limitação de
+  plataforma, não é bug.** O checkout usa um mecanismo separado
+  (`Scripts API` com `location: checkout`), que a Nuvemshop está
+  descontinuando obrigatoriamente em favor do **NubeSDK**. O NubeSDK roda em
+  Web Worker **sem acesso a DOM** — só expõe pontos fixos de inserção
+  (formulário customizado, rótulo de frete, info de pagamento, cupons,
+  overlays), sem nenhuma API de preço/moeda documentada. A abordagem usada na
+  vitrine (TreeWalker + regex de preço em texto livre) é estruturalmente
+  incompatível com isso. Na prática: o comprador vê a vitrine toda
+  traduzida/convertida, mas o checkout continua no idioma/moeda original da
+  loja. Não ameaça o script atual (`location: store`, fora dessa migração
+  forçada) — só significa que não há caminho suportado pra estender a
+  tradução até o checkout hoje. Mitigação parcial possível (não implementada):
+  inserir avisos/textos customizados traduzidos nos slots fixos do NubeSDK,
+  sem cobrir a tradução da página em si.
+
+---
+
+## Dashboard: Vendas por País (mapa + histórico)
+
+Feature do painel admin (app iframe) — mapa de calor com vendas/faturamento
+por país + gráfico de histórico com filtro de data. Não tem relação com a
+feature de tradução da vitrine; é um dado novo (pedidos) que o app não
+coletava antes.
+
+### ⚠️ Ação necessária: permissão de Pedidos no Partners Portal
+
+O app precisa da permissão de **Pedidos** (leitura) habilitada no Partners
+Portal pra conseguir chamar `GET /orders/:id` e `POST/GET /webhooks`. Sem
+isso, o webhook de pedido pago é registrado (best-effort, não falha o
+install) mas a busca do pedido completo retorna 403 e nada é gravado.
+**Lojas já instaladas antes dessa permissão ser habilitada podem precisar
+reautorizar o app** (OAuth da Nuvemshop não expande escopo de token existente
+automaticamente) — se o mapa ficar vazio numa loja antiga, esse é o motivo
+mais provável, testar reinstalação antes de investigar outra causa.
+
+### Arquitetura ponta a ponta
+
+```
+1. No install (auth.js), ensureOrderPaidWebhook regista best-effort a
+   subscription do evento order/paid via POST /{storeId}/webhooks — só cria
+   se ainda não existir (checa via GET /webhooks primeiro, evita duplicar
+   subscription a cada reinstalação)
+
+2. Nuvemshop dispara POST /webhooks/order/paid quando um pedido é pago.
+   Payload é minimo: { store_id, event, id } — NÃO inclui valor/país do
+   pedido, só o id. HMAC validado (header x-linkedstore-hmac-sha256, mesmo
+   helper checkHmac() já usado pelos webhooks de LGPD)
+
+3. recordPaidOrder() busca o pedido completo via GET /orders/:id (token da
+   loja) e extrai: total_paid_by_customer (valor), currency, país (
+   shipping_address.country, fallback billing_address.country), paid_at
+
+4. Upsert em OrderRecord (unique por storeId+nuvemshopOrderId — pedido
+   duplicado do webhook, ex. reentrega, não duplica a linha)
+
+5. GET /api/analytics/sales?from=&to= (autenticado, requireAuth) agrega
+   OrderRecord da loja por país (count+revenue) e por dia (timeseries) —
+   agregação feita em JS após fetch filtrado por data, não em SQL
+   (aceitável pro volume esperado; revisar se algum store tiver volume alto)
+
+6. Dashboard.jsx renderiza SalesMap.jsx (mapa de calor, mesmo padrão de
+   CountryMapSelector.jsx: react-simple-maps + world-atlas +
+   NUMERIC_TO_ALPHA2, mas colorindo por intensidade de venda/faturamento em
+   vez de habilitado/desabilitado) + SalesHistoryChart.jsx (recharts, com
+   presets de 7/30/90 dias + range customizado via <input type="date">)
+```
+
+### Modelo `OrderRecord`
+
+Por loja (não é global como `TranslationCache`/`ExchangeRate` — pedido É
+sensível a tenant). `amount` assume que todo pedido da loja é registrado na
+mesma moeda (`currency` do pedido, tipicamente igual ao `baseCurrency` da
+loja) — se uma loja um dia operar em múltiplas moedas, a soma direta em
+`revenue` (sem conversão) ficaria incorreta; não é o caso hoje, mas é uma
+limitação a rever se surgir.
+
+### Decisão: agregação em JS, não SQL
+
+`GET /api/analytics/sales` busca as linhas filtradas por data e agrega
+(`Map` por país, `Map` por dia) em JavaScript, não via `groupBy`/SQL raw do
+Prisma. Mais simples e correto sem risco de bug em SQL manual; troque por
+`$queryRaw` com `DATE_TRUNC` se o volume de pedidos de alguma loja crescer
+o suficiente pra isso pesar.
 
 ---
 

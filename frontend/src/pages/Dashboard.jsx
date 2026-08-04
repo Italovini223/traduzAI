@@ -1,11 +1,78 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Card, Text, Title } from '@nimbus-ds/components';
+import { Box, Card, Text, Title, Spinner, Alert, Select } from '@nimbus-ds/components';
 import { useNexo } from '../providers/NexoProvider.jsx';
+import api from '../services/api.js';
+import SalesMap from '../components/SalesMap.jsx';
+import SalesHistoryChart from '../components/SalesHistoryChart.jsx';
+
+function defaultRange() {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - 30);
+  return { from, to };
+}
 
 export default function Dashboard() {
   const { t } = useTranslation();
   const { store } = useNexo();
+
+  const [range, setRange] = useState(defaultRange);
+  const [metric, setMetric] = useState('revenue');
+  const [sales, setSales] = useState(null);
+  const [countryLabels, setCountryLabels] = useState({});
+  const [baseCurrency, setBaseCurrency] = useState('BRL');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const loadSales = useCallback(async (from, to) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get('/api/analytics/sales', {
+        params: { from: from.toISOString(), to: to.toISOString() },
+      });
+      setSales(res.data);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSales(range.from, range.to);
+  }, [range, loadSales]);
+
+  useEffect(() => {
+    api
+      .get('/api/translations/options')
+      .then((res) => {
+        const map = {};
+        (res.data?.countries || []).forEach((c) => {
+          map[c.code] = c.label;
+        });
+        setCountryLabels(map);
+      })
+      .catch(() => { /* silencioso — mapa cai pro nome do topojson */ });
+
+    api
+      .get('/api/translations/config')
+      .then((res) => {
+        if (res.data?.config?.baseCurrency) setBaseCurrency(res.data.config.baseCurrency);
+      })
+      .catch(() => { /* silencioso — mantem BRL */ });
+  }, []);
+
+  const handleRangeChange = (from, to) => setRange({ from, to });
+
+  const formatValue = (value) => {
+    try {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: baseCurrency }).format(value || 0);
+    } catch {
+      return `${baseCurrency} ${(value || 0).toFixed(2)}`;
+    }
+  };
 
   return (
     <Box display="flex" flexDirection="column" gap="4">
@@ -26,21 +93,46 @@ export default function Dashboard() {
         </Card.Body>
       </Card>
 
-      {/* Placeholder for app-specific dashboard content */}
       <Card>
+        <Card.Header>
+          <Title as="h3">{t('dashboard.salesMap.title')}</Title>
+        </Card.Header>
         <Card.Body>
-          <Box
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            padding="8"
-            borderColor="neutral-surfaceHighlight"
-            borderStyle="dashed"
-            borderWidth="1"
-            borderRadius="2"
-          >
-            <Text color="neutral-textDisabled">{t('dashboard.contentPlaceholder')}</Text>
-          </Box>
+          {error && <Alert appearance="danger">{error}</Alert>}
+          {loading && !sales ? (
+            <Spinner />
+          ) : sales && (
+            <Box display="flex" flexDirection="column" gap="4">
+              <Box display="flex" gap="4" flexWrap="wrap" alignItems="center">
+                <Text>
+                  {t('dashboard.salesMap.totalSales')}: <strong>{sales.totals.salesCount}</strong>
+                </Text>
+                <Text>
+                  {t('dashboard.salesMap.totalRevenue')}: <strong>{formatValue(sales.totals.revenue)}</strong>
+                </Text>
+                <Box minWidth="200px">
+                  <Select name="mapMetric" value={metric} onChange={(e) => setMetric(e.target.value)}>
+                    <Select.Option value="revenue" label={t('dashboard.salesMap.metricRevenue')}>
+                      {t('dashboard.salesMap.metricRevenue')}
+                    </Select.Option>
+                    <Select.Option value="salesCount" label={t('dashboard.salesMap.metricSalesCount')}>
+                      {t('dashboard.salesMap.metricSalesCount')}
+                    </Select.Option>
+                  </Select>
+                </Box>
+              </Box>
+
+              <SalesMap byCountry={sales.byCountry} metric={metric} formatValue={formatValue} countryLabels={countryLabels} />
+
+              <SalesHistoryChart
+                timeseries={sales.timeseries}
+                from={range.from}
+                to={range.to}
+                onRangeChange={handleRangeChange}
+                formatValue={formatValue}
+              />
+            </Box>
+          )}
         </Card.Body>
       </Card>
     </Box>

@@ -110,5 +110,10 @@ moeda. Um load de pagina comum e leitura pura de banco.
   comprador enquanto isso.
 - **Script auto-instalado nao aceita associacao manual por loja** — a
   Nuvemshop injeta `?store=<id>` automaticamente em toda loja.
+- **Checkout nao e traduzivel** — usa mecanismo separado (`location:
+  checkout`), sendo migrado obrigatoriamente pro NubeSDK, que roda em Web
+  Worker sem acesso a DOM (so pontos fixos de insercao, sem API de
+  preco/moeda). Vitrine traduz normalmente; checkout fica no idioma/moeda
+  original da loja. Nao afeta o script atual (`location: store`).
 
 Detalhes completos (decisoes, testes, gotchas) em `CLAUDE.md`.

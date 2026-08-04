@@ -234,7 +234,24 @@
   "dashboard": {
     "title": "Painel",
     "welcome": "Bem-vindo ao seu painel!",
-    "contentPlaceholder": "Adicione aqui o conteúdo do seu app."
+    "contentPlaceholder": "Adicione aqui o conteúdo do seu app.",
+    "salesMap": {
+      "title": "Vendas por país",
+      "totalSales": "Vendas no período",
+      "totalRevenue": "Faturamento no período",
+      "metricRevenue": "Colorir por faturamento",
+      "metricSalesCount": "Colorir por quantidade de vendas",
+      "salesUnit": "vendas",
+      "hoverHint": "Passe o mouse sobre um país pra ver o detalhe."
+    },
+    "salesHistory": {
+      "lastDays": "Últimos {{days}} dias",
+      "from": "De",
+      "to": "Até",
+      "sales": "Vendas",
+      "revenue": "Faturamento",
+      "empty": "Sem vendas registradas nesse período."
+    }
   },
   "settings": {
     "title": "Configura\u00e7\u00f5es",

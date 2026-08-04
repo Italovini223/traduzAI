@@ -230,7 +230,24 @@
   "dashboard": {
     "title": "Panel",
     "welcome": "\u00a1Bienvenido a tu panel!",
-    "contentPlaceholder": "Agreg\u00e1 aqu\u00ed el contenido de tu app."
+    "contentPlaceholder": "Agreg\u00e1 aqu\u00ed el contenido de tu app.",
+    "salesMap": {
+      "title": "Ventas por pa\u00eds",
+      "totalSales": "Ventas en el per\u00edodo",
+      "totalRevenue": "Facturaci\u00f3n en el per\u00edodo",
+      "metricRevenue": "Colorear por facturaci\u00f3n",
+      "metricSalesCount": "Colorear por cantidad de ventas",
+      "salesUnit": "ventas",
+      "hoverHint": "Pas\u00e1 el mouse sobre un pa\u00eds para ver el detalle."
+    },
+    "salesHistory": {
+      "lastDays": "\u00daltimos {{days}} d\u00edas",
+      "from": "Desde",
+      "to": "Hasta",
+      "sales": "Ventas",
+      "revenue": "Facturaci\u00f3n",
+      "empty": "Sin ventas registradas en ese per\u00edodo."
+    }
   },
   "settings": {
     "title": "Configuraci\u00f3n",

@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const prisma = require('../lib/prisma');
+const { createNuvemshopClient } = require('../config/nuvemshop');
 
 const router = express.Router();
 
@@ -88,6 +89,56 @@ router.post('/customers/redact', (req, res) => {
 router.post('/customers/data_request', (req, res) => {
   console.log(`[nuvemshop][LGPD] customers/data_request store_id=${req.body?.store_id}`);
   res.status(200).json({ success: true, data: [] });
+});
+
+/**
+ * Busca o pedido completo (o payload do webhook só traz store_id/event/id) e
+ * grava em OrderRecord — fonte do mapa/gráfico de vendas por país no
+ * Dashboard. Best-effort: nunca lança, roda fire-and-forget após o 200.
+ */
+async function recordPaidOrder(nuvemshopStoreId, orderId) {
+  if (!nuvemshopStoreId || !orderId) return;
+  try {
+    const store = await prisma.store.findUnique({ where: { nuvemshopId: String(nuvemshopStoreId) } });
+    if (!store || !store.accessToken) return;
+
+    const client = createNuvemshopClient(store.nuvemshopId, store.accessToken);
+    const { data: order } = await client.get(`/orders/${orderId}`);
+
+    const amount = Number(order.total_paid_by_customer);
+    if (!Number.isFinite(amount)) return;
+
+    const country = order.shipping_address?.country || order.billing_address?.country || null;
+
+    await prisma.orderRecord.upsert({
+      where: { storeId_nuvemshopOrderId: { storeId: store.id, nuvemshopOrderId: String(orderId) } },
+      update: {},
+      create: {
+        storeId: store.id,
+        nuvemshopOrderId: String(orderId),
+        country,
+        amount,
+        currency: order.currency || store.translationConfig?.baseCurrency || 'BRL',
+        paidAt: order.paid_at ? new Date(order.paid_at) : new Date(),
+      },
+    });
+  } catch (err) {
+    console.error('[nuvemshop-webhook] recordPaidOrder falhou:', err.message);
+  }
+}
+
+/**
+ * POST /webhooks/order/paid — pedido pago, fonte do mapa/gráfico de vendas
+ * por país no Dashboard. Sempre responde 200 rápido (exigido pela Nuvemshop);
+ * a busca do pedido completo + grava roda depois, fire-and-forget.
+ */
+router.post('/order/paid', (req, res) => {
+  if (checkHmac(req) === false) {
+    console.warn('[nuvemshop] order/paid com HMAC invalido — ignorado');
+    return res.status(401).json({ error: 'Invalid HMAC.' });
+  }
+  recordPaidOrder(req.body?.store_id, req.body?.id);
+  res.status(200).json({ success: true });
 });
 
 module.exports = router;

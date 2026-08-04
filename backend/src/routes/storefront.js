@@ -5,7 +5,7 @@ const prisma = require('../lib/prisma');
 const { AppError } = require('../lib/errors');
 const { DeepLService } = require('../config/deepl');
 const { ExchangeRateService } = require('../config/exchangeRate');
-const { isValidLanguage, SUPPORTED_COUNTRIES } = require('../lib/localeOptions');
+const { isValidLanguage, SUPPORTED_COUNTRIES, COUNTRY_DEFAULTS } = require('../lib/localeOptions');
 
 const router = express.Router();
 
@@ -26,9 +26,26 @@ function sha256(text) {
 }
 
 /**
+ * Acha um pais cujo idioma+moeda padrao (COUNTRY_DEFAULTS) batam exatamente
+ * com o idioma/moeda de origem configurados pelo lojista — usado so pra dar
+ * uma bandeira "nativa" ao seletor do widget (best-effort, heuristico: nao
+ * ha campo de pais de origem no schema, so idioma+moeda).
+ */
+function findHomeCountry(sourceLanguage, baseCurrency) {
+  const code = Object.keys(COUNTRY_DEFAULTS).find((c) => {
+    const d = COUNTRY_DEFAULTS[c];
+    return d.language === sourceLanguage && d.currency === baseCurrency;
+  });
+  if (!code) return null;
+  return { code, name: COUNTRY_LABELS[code] || code, language: sourceLanguage, currency: baseCurrency };
+}
+
+/**
  * GET /storefront/rules?store={nuvemshopId}
  * Lista os paises com regra de idioma/moeda configurada pelo lojista, para o
- * widget renderizar o seletor manual de bandeiras (fallback do geoip por IP).
+ * widget renderizar o seletor manual de bandeiras (fallback do geoip por IP)
+ * — mais a bandeira "home" (idioma/moeda de origem da loja), pro comprador
+ * voltar facilmente ao conteudo nativo.
  */
 router.get('/rules', async (req, res, next) => {
   try {
@@ -43,17 +60,25 @@ router.get('/rules', async (req, res, next) => {
     });
 
     if (!store || !store.translationConfig?.enabled) {
-      return res.json({ countries: [] });
+      return res.json({ countries: [], home: null });
     }
 
-    const countries = store.localeRules.map((rule) => ({
-      code: rule.country,
-      name: COUNTRY_LABELS[rule.country] || rule.country,
-      language: rule.language,
-      currency: rule.currency,
-    }));
+    const config = store.translationConfig;
+    // Regra sem efeito (mesmo idioma E mesma moeda da origem) fica de fora do
+    // seletor — selecioná-la nao mudaria nada (mesma condicao usada em
+    // /storefront/config pra retornar active:false) e, quando o pais da regra
+    // e o mesmo do "home" calculado abaixo, geraria bandeira duplicada.
+    const countries = store.localeRules
+      .filter((rule) => rule.language !== config.sourceLanguage || rule.currency !== config.baseCurrency)
+      .map((rule) => ({
+        code: rule.country,
+        name: COUNTRY_LABELS[rule.country] || rule.country,
+        language: rule.language,
+        currency: rule.currency,
+      }));
+    const home = findHomeCountry(config.sourceLanguage, config.baseCurrency);
 
-    res.json({ countries });
+    res.json({ countries, home });
   } catch (err) {
     next(err);
   }
