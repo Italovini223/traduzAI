@@ -23,18 +23,22 @@ const CURRENCY_SYMBOLS = {
   '₺': 'TRY',
 };
 
-// Casa símbolo/código de moeda seguido (ou precedido) de um número no
-// formato pt-BR/es (1.234,56) ou en-US (1,234.56).
-const PRICE_REGEX = new RegExp(
-  '(' + Object.keys(CURRENCY_SYMBOLS).map(escapeRegExp).join('|') + ')' +
-  '\\s?' +
-  '(\\d{1,3}(?:[.,]\\d{3})*(?:[.,]\\d{1,2})?)',
-  'g'
-);
-
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+// Casa símbolo/código de moeda seguido OU precedido de um número no formato
+// pt-BR/es (1.234,56) ou en-US (1,234.56). As duas ordens são necessárias
+// porque o DeepL reposiciona o símbolo pro final da frase em alguns idiomas
+// de destino (ex.: "R$179,90" -> "179,90 R$" ao traduzir pra espanhol) —
+// sem a 2a alternativa o preço traduzido nunca é detectado/convertido.
+const SYMBOLS_PATTERN = Object.keys(CURRENCY_SYMBOLS).map(escapeRegExp).join('|');
+const NUMBER_PATTERN = '\\d{1,3}(?:[.,]\\d{3})*(?:[.,]\\d{1,2})?';
+const PRICE_REGEX = new RegExp(
+  '(?:(' + SYMBOLS_PATTERN + ')\\s?(' + NUMBER_PATTERN + ')' +
+  '|(' + NUMBER_PATTERN + ')\\s?(' + SYMBOLS_PATTERN + '))',
+  'g'
+);
 
 /**
  * Converte um número formatado (pt-BR "1.234,56" ou en-US "1,234.56") para float.
@@ -83,7 +87,9 @@ function findPriceMatches(text) {
   let m;
   PRICE_REGEX.lastIndex = 0;
   while ((m = PRICE_REGEX.exec(text)) !== null) {
-    const [fullMatch, symbol, rawAmount] = m;
+    const fullMatch = m[0];
+    const symbol = m[1] || m[4];
+    const rawAmount = m[2] || m[3];
     const amount = parseLocalizedNumber(rawAmount);
     if (Number.isNaN(amount)) continue;
     matches.push({

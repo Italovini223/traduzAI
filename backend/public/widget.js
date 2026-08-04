@@ -53,9 +53,15 @@
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
+  // Símbolo antes OU depois do número — o DeepL reposiciona o símbolo pro
+  // final da frase em alguns idiomas de destino (ex.: "R$179,90" ->
+  // "179,90 R$" ao traduzir pra espanhol); sem a 2a alternativa o preço
+  // traduzido nunca é detectado/convertido.
+  var SYMBOLS_PATTERN = Object.keys(CURRENCY_SYMBOLS).map(escapeRegExp).join('|');
+  var NUMBER_PATTERN = '\\d{1,3}(?:[.,]\\d{3})*(?:[.,]\\d{1,2})?';
   var PRICE_REGEX = new RegExp(
-    '(' + Object.keys(CURRENCY_SYMBOLS).map(escapeRegExp).join('|') + ')' +
-    '\\s?(\\d{1,3}(?:[.,]\\d{3})*(?:[.,]\\d{1,2})?)',
+    '(?:(' + SYMBOLS_PATTERN + ')\\s?(' + NUMBER_PATTERN + ')' +
+    '|(' + NUMBER_PATTERN + ')\\s?(' + SYMBOLS_PATTERN + '))',
     'g'
   );
 
@@ -88,7 +94,7 @@
     var m;
     PRICE_REGEX.lastIndex = 0;
     while ((m = PRICE_REGEX.exec(text)) !== null) {
-      var amount = parseLocalizedNumber(m[2]);
+      var amount = parseLocalizedNumber(m[2] || m[3]);
       if (isNaN(amount)) continue;
       matches.push({ fullMatch: m[0], amount: amount, index: m.index });
     }

@@ -47,3 +47,16 @@ test('replacePricesInText leaves text unchanged when no price is found', () => {
   const text = 'Sem preços aqui';
   assert.equal(replacePricesInText(text, 0.2, 'USD'), text);
 });
+
+test('findPriceMatches detects symbol AFTER the number (DeepL repositions it in some target languages)', () => {
+  const matches = findPriceMatches('179,90 R$');
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].amount, 179.9);
+  assert.equal(matches[0].currency, 'BRL');
+});
+
+test('replacePricesInText converts prices with the symbol positioned after the number', () => {
+  const result = replacePricesInText('179,90 R$', 293.5019, 'ARS', 'en-US');
+  assert.doesNotMatch(result, /179,90/);
+  assert.match(result, /52,800\.99/);
+});
