@@ -242,7 +242,9 @@
       "metricRevenue": "Colorir por faturamento",
       "metricSalesCount": "Colorir por quantidade de vendas",
       "salesUnit": "vendas",
-      "hoverHint": "Passe o mouse sobre um país pra ver o detalhe."
+      "hoverHint": "Passe o mouse sobre um país pra ver o detalhe.",
+      "syncButton": "Sincronizar pedidos",
+      "syncDone": "{{count}} pedido(s) sincronizado(s)."
     },
     "salesHistory": {
       "lastDays": "Últimos {{days}} dias",

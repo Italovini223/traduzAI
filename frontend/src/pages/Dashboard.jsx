@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Card, Text, Title, Spinner, Alert, Select } from '@nimbus-ds/components';
+import { Box, Card, Text, Title, Spinner, Alert, Select, Button } from '@nimbus-ds/components';
 import { useNexo } from '../providers/NexoProvider.jsx';
 import api from '../services/api.js';
 import SalesMap from '../components/SalesMap.jsx';
@@ -24,6 +24,8 @@ export default function Dashboard() {
   const [baseCurrency, setBaseCurrency] = useState('BRL');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState(null);
 
   const loadSales = useCallback(async (from, to) => {
     setLoading(true);
@@ -66,6 +68,21 @@ export default function Dashboard() {
 
   const handleRangeChange = (from, to) => setRange({ from, to });
 
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    setError(null);
+    try {
+      const res = await api.post('/api/analytics/sync');
+      setSyncMsg(t('dashboard.salesMap.syncDone', { count: res.data?.synced ?? 0 }));
+      await loadSales(range.from, range.to);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const formatValue = (value) => {
     try {
       return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: baseCurrency }).format(value || 0);
@@ -95,10 +112,16 @@ export default function Dashboard() {
 
       <Card>
         <Card.Header>
-          <Title as="h3">{t('dashboard.salesMap.title')}</Title>
+          <Box display="flex" justifyContent="space-between" alignItems="center" width="100%">
+            <Title as="h3">{t('dashboard.salesMap.title')}</Title>
+            <Button appearance="neutral" onClick={handleSync} disabled={syncing}>
+              {syncing ? t('common.loading') : t('dashboard.salesMap.syncButton')}
+            </Button>
+          </Box>
         </Card.Header>
         <Card.Body>
           {error && <Alert appearance="danger">{error}</Alert>}
+          {syncMsg && <Alert appearance="success">{syncMsg}</Alert>}
           {loading && !sales ? (
             <Spinner />
           ) : sales && (

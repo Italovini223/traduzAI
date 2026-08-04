@@ -1,7 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const prisma = require('../lib/prisma');
-const { createNuvemshopClient } = require('../config/nuvemshop');
+const { fetchOrderById, saveOrderRecord } = require('../lib/orderSync');
 
 const router = express.Router();
 
@@ -102,26 +102,8 @@ async function recordPaidOrder(nuvemshopStoreId, orderId) {
     const store = await prisma.store.findUnique({ where: { nuvemshopId: String(nuvemshopStoreId) } });
     if (!store || !store.accessToken) return;
 
-    const client = createNuvemshopClient(store.nuvemshopId, store.accessToken);
-    const { data: order } = await client.get(`/orders/${orderId}`);
-
-    const amount = Number(order.total_paid_by_customer);
-    if (!Number.isFinite(amount)) return;
-
-    const country = order.shipping_address?.country || order.billing_address?.country || null;
-
-    await prisma.orderRecord.upsert({
-      where: { storeId_nuvemshopOrderId: { storeId: store.id, nuvemshopOrderId: String(orderId) } },
-      update: {},
-      create: {
-        storeId: store.id,
-        nuvemshopOrderId: String(orderId),
-        country,
-        amount,
-        currency: order.currency || store.translationConfig?.baseCurrency || 'BRL',
-        paidAt: order.paid_at ? new Date(order.paid_at) : new Date(),
-      },
-    });
+    const order = await fetchOrderById(store, orderId);
+    await saveOrderRecord(store.id, orderId, order);
   } catch (err) {
     console.error('[nuvemshop-webhook] recordPaidOrder falhou:', err.message);
   }

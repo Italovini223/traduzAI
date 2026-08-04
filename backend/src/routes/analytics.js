@@ -2,9 +2,34 @@ const express = require('express');
 const prisma = require('../lib/prisma');
 const { AppError } = require('../lib/errors');
 const { requireAuth } = require('../middleware/auth');
+const { ensureOrderPaidWebhook } = require('../config/nuvemshop');
+const { syncPaidOrders } = require('../lib/orderSync');
 
 const router = express.Router();
 router.use(requireAuth);
+
+/**
+ * POST /api/analytics/sync
+ * Registra o webhook order/paid (se ainda não existir) e faz backfill dos
+ * pedidos já pagos via API — necessário pra lojas que instalaram o app antes
+ * dessa feature existir (webhook só cobre eventos futuros) e pra pedidos
+ * manuais marcados como pagos sem passar pelo fluxo que dispara o webhook.
+ */
+router.post('/sync', async (req, res, next) => {
+  try {
+    const store = req.store;
+    if (process.env.BACKEND_URL) {
+      try {
+        await ensureOrderPaidWebhook(store.nuvemshopId, store.accessToken, `${process.env.BACKEND_URL}/webhooks/order/paid`);
+      } catch { /* best-effort — sync de pedidos nao depende do webhook estar ok */ }
+    }
+
+    const synced = await syncPaidOrders(store);
+    res.json({ synced });
+  } catch (err) {
+    next(err);
+  }
+});
 
 function parseDateParam(value, fallback) {
   if (!value) return fallback;

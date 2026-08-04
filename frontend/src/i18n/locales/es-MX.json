@@ -238,7 +238,9 @@
       "metricRevenue": "Colorear por facturaci\u00f3n",
       "metricSalesCount": "Colorear por cantidad de ventas",
       "salesUnit": "ventas",
-      "hoverHint": "Pasa el mouse sobre un pa\u00eds para ver el detalle."
+      "hoverHint": "Pasa el mouse sobre un pa\u00eds para ver el detalle.",
+      "syncButton": "Sincronizar pedidos",
+      "syncDone": "{{count}} pedido(s) sincronizado(s)."
     },
     "salesHistory": {
       "lastDays": "\u00daltimos {{days}} d\u00edas",
