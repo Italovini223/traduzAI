@@ -574,8 +574,15 @@ mais provável, testar reinstalação antes de investigar outra causa.
    helper checkHmac() já usado pelos webhooks de LGPD)
 
 3. recordPaidOrder() busca o pedido completo via GET /orders/:id (token da
-   loja) e extrai: total_paid_by_customer (valor), currency, país (
-   shipping_address.country, fallback billing_address.country), paid_at
+   loja) e extrai, via orderSync.js#extractOrderFields: total (valor —
+   NÃO total_paid_by_customer, que a doc geral cita mas não existe na
+   resposta real; total_paid também não usar, fica "0.00" em pedido manual
+   marcado como pago sem Transaction real), currency, país
+   (shipping_address.country — objeto aninhado, confirmado —, fallback
+   billing_country — campo PLANO, não billing_address.country como a doc
+   geral sugere), paid_at. Nomes de campo confirmados inspecionando pedido
+   real, não só a doc — a doc da Nuvemshop nem sempre bate com a resposta
+   de verdade, revalidar se o comportamento parecer errado de novo.
 
 4. Upsert em OrderRecord (unique por storeId+nuvemshopOrderId — pedido
    duplicado do webhook, ex. reentrega, não duplica a linha)
@@ -590,7 +597,23 @@ mais provável, testar reinstalação antes de investigar outra causa.
    NUMERIC_TO_ALPHA2, mas colorindo por intensidade de venda/faturamento em
    vez de habilitado/desabilitado) + SalesHistoryChart.jsx (recharts, com
    presets de 7/30/90 dias + range customizado via <input type="date">)
+
+7. POST /api/analytics/sync (autenticado) — backfill manual: garante o
+   webhook (ensureOrderPaidWebhook, idempotente) e busca TODOS os pedidos
+   pagos via GET /orders?payment_status=paid (paginado, orderSync.js#
+   syncPaidOrders) pra cobrir pedidos que existiam antes do webhook ser
+   registrado, ou pedidos manuais (storefront:"form") que a Nuvemshop pode
+   não disparar order/paid pra eles de forma confiável (não confirmado se
+   dispara ou não — o backfill cobre os dois casos independente disso).
+   Botão "Sincronizar pedidos" no Dashboard chama essa rota.
 ```
+
+**Escopo obrigatório**: `read_orders` (habilitar no Partners Portal). Sem
+ele, tanto `GET /webhooks` quanto `GET /orders` retornam 403 `"Missing
+required scope: read_orders"`. Habilitar a permissão no portal NÃO atualiza
+tokens já emitidos — loja instalada antes disso precisa **reinstalar** pra
+ganhar token novo com o escopo. Confirmado na prática: erro 403 sumiu só
+depois de reinstalar a loja de teste.
 
 ### Modelo `OrderRecord`
 

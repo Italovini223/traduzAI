@@ -4,11 +4,19 @@ const { createNuvemshopClient } = require('../config/nuvemshop');
 // Extrai os campos que importam do recurso Order da Nuvemshop. Usado tanto
 // pelo webhook (order/paid, 1 pedido por vez) quanto pelo backfill/sync
 // (histórico, paginado) — mesma lógica, uma fonte só.
+//
+// `total` (string, ex: "179.90") é o campo real — confirmado inspecionando
+// pedido de verdade; a doc geral cita `total_paid_by_customer`, que não veio
+// nem em pedido manual nem em pedido normal desta conta. `total_paid` fica
+// "0.00" em pedido marcado como pago manualmente (gateway "internal", sem
+// Transaction real) — não usar esse campo pra faturamento.
+// País: `shipping_address.country` (objeto aninhado, confirmado); billing
+// vem como campo plano `billing_country`, não `billing_address.country`.
 function extractOrderFields(order) {
-  const amount = Number(order.total_paid_by_customer);
+  const amount = Number(order.total);
   if (!Number.isFinite(amount)) return null;
   return {
-    country: order.shipping_address?.country || order.billing_address?.country || null,
+    country: order.shipping_address?.country || order.billing_country || null,
     amount,
     currency: order.currency || 'BRL',
     paidAt: order.paid_at ? new Date(order.paid_at) : new Date(),
