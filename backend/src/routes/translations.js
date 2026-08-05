@@ -40,7 +40,7 @@ router.get('/config', async (req, res, next) => {
     ]);
 
     res.json({
-      config: config || { enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL' },
+      config: config || { enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL', translateImages: false },
       rules,
     });
   } catch (err) {
@@ -53,7 +53,7 @@ router.get('/config', async (req, res, next) => {
  */
 router.put('/config', async (req, res, next) => {
   try {
-    const { enabled, sourceLanguage, baseCurrency } = req.body;
+    const { enabled, sourceLanguage, baseCurrency, translateImages } = req.body;
 
     if (sourceLanguage !== undefined && !isValidLanguage(sourceLanguage)) {
       throw new AppError('Idioma de origem invalido.', 400, 'INVALID_LANGUAGE');
@@ -66,6 +66,7 @@ router.put('/config', async (req, res, next) => {
     if (enabled !== undefined) data.enabled = Boolean(enabled);
     if (sourceLanguage !== undefined) data.sourceLanguage = sourceLanguage;
     if (baseCurrency !== undefined) data.baseCurrency = baseCurrency;
+    if (translateImages !== undefined) data.translateImages = Boolean(translateImages);
 
     const config = await prisma.storeTranslationConfig.upsert({
       where: { storeId: req.store.id },

@@ -162,15 +162,16 @@
     });
   }
 
-  // ─── Atributos traduzíveis: placeholder de input/textarea e o texto de
+  // ─── Atributos traduzíveis: placeholder de input/textarea, texto de
   // botões renderizados como <input type="submit|button|reset" value="...">
-  // (padrão comum em temas Nuvemshop pra "Comprar"/"Iniciar Compra"/etc).
-  // Não inclui inputs de texto/email/hidden — só os que exibem o value como
-  // rótulo visível, nunca como dado digitado/enviado pelo comprador.
+  // (padrão comum em temas Nuvemshop pra "Comprar"/"Iniciar Compra"/etc), e
+  // alt de imagem (acessibilidade + SEO de busca de imagem). Não inclui
+  // inputs de texto/email/hidden — só os que exibem o value como rótulo
+  // visível, nunca como dado digitado/enviado pelo comprador.
   var ORIGINAL_ATTR = new WeakMap();
   var KNOWN_ATTR_ELS = [];
   var BUTTON_INPUT_TYPES = { submit: 1, button: 1, reset: 1 };
-  var ATTR_SELECTOR = '[placeholder], input[type="submit"], input[type="button"], input[type="reset"]';
+  var ATTR_SELECTOR = '[placeholder], input[type="submit"], input[type="button"], input[type="reset"], img[alt]';
 
   function rememberOriginalAttr(el, attr) {
     var entry = ORIGINAL_ATTR.get(el);
@@ -208,6 +209,10 @@
         var val = el.getAttribute('value');
         if (val && val.trim()) items.push({ el: el, attr: 'value' });
       }
+      if (el.tagName === 'IMG') {
+        var alt = el.getAttribute('alt');
+        if (alt && alt.trim()) items.push({ el: el, attr: 'alt' });
+      }
     });
     return items;
   }
@@ -238,6 +243,198 @@
         });
       })
       .catch(function () { /* falha silenciosa */ });
+  }
+
+  // ─── SEO: <title> e meta tags — ficam no <head>, fora da árvore de texto
+  // do <body> (por isso precisam de coleta própria, não passam pelo
+  // TreeWalker nem pelo ATTR_SELECTOR de cima). Sem tradução aqui, buscador
+  // indexa a página em idioma diferente do texto visível pro visitante.
+  var ORIGINAL_HEAD = new WeakMap();
+  var KNOWN_HEAD_ITEMS = [];
+  var HEAD_META_SELECTORS = ['meta[name="description"]', 'meta[property="og:title"]', 'meta[property="og:description"]'];
+
+  function collectHeadTranslatables() {
+    var items = [];
+    var titleEl = document.querySelector('title');
+    if (titleEl && titleEl.textContent.trim()) items.push({ el: titleEl, kind: 'text' });
+
+    HEAD_META_SELECTORS.forEach(function (sel) {
+      var el = document.querySelector(sel);
+      if (el && el.getAttribute('content') && el.getAttribute('content').trim()) {
+        items.push({ el: el, kind: 'attr', attr: 'content' });
+      }
+    });
+    return items;
+  }
+
+  function rememberHeadOriginal(item) {
+    if (!ORIGINAL_HEAD.has(item.el)) {
+      var value = item.kind === 'text' ? item.el.textContent : item.el.getAttribute(item.attr);
+      ORIGINAL_HEAD.set(item.el, value);
+      KNOWN_HEAD_ITEMS.push(item);
+    }
+    return ORIGINAL_HEAD.get(item.el);
+  }
+
+  function restoreHeadOriginals() {
+    KNOWN_HEAD_ITEMS.forEach(function (item) {
+      var value = ORIGINAL_HEAD.get(item.el);
+      if (item.kind === 'text') item.el.textContent = value;
+      else item.el.setAttribute(item.attr, value);
+    });
+  }
+
+  function applyHeadTranslation(config) {
+    var items = collectHeadTranslatables();
+    var texts = items.map(rememberHeadOriginal);
+    if (texts.length === 0) return;
+
+    fetch(API_ORIGIN + '/storefront/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        store: STORE_ID,
+        texts: texts,
+        sourceLang: config.sourceLanguage,
+        targetLang: config.targetLanguage,
+      }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var translations = data.translations || texts;
+        items.forEach(function (item, i) {
+          var translated = translations[i] || texts[i];
+          if (item.kind === 'text') item.el.textContent = translated;
+          else item.el.setAttribute(item.attr, translated);
+        });
+      })
+      .catch(function () { /* falha silenciosa */ });
+  }
+
+  // ─── Tradução de texto embutido em imagem (banner) — opt-in, feature com
+  // custo externo (Google Vision OCR no backend). Desenha um retângulo (cor
+  // aproximada do fundo, calculada no backend) + texto traduzido via
+  // <canvas>, troca img.src pelo resultado. Funciona bem em fundo de cor
+  // sólida; em foto complexa a sobreposição fica visível — limitação
+  // conhecida e aceita (ver CLAUDE.md).
+  var IMAGE_MIN_SIZE = 200; // ignora ícone/thumbnail pequeno
+  var IMAGE_BATCH_SIZE = 15; // bate com MAX_IMAGES_PER_REQUEST do backend
+
+  function withLoadedImage(img, cb) {
+    if (img.complete && img.naturalWidth > 0) { cb(true); return; }
+    if (img.complete) { cb(false); return; } // completou sem dimensão = imagem quebrada
+    img.addEventListener('load', function () { cb(true); }, { once: true });
+    img.addEventListener('error', function () { cb(false); }, { once: true });
+  }
+
+  function textColorFor(bgColor) {
+    var m = /rgb\((\d+),(\d+),(\d+)\)/.exec(bgColor || '');
+    if (!m) return '#000000';
+    var luminance = (0.299 * Number(m[1]) + 0.587 * Number(m[2]) + 0.114 * Number(m[3])) / 255;
+    return luminance > 0.6 ? '#000000' : '#ffffff';
+  }
+
+  function drawOverlay(img, blocks) {
+    var originalSrc = rememberOriginalAttr(img, 'src');
+    var loader = new Image();
+    loader.crossOrigin = 'anonymous';
+    loader.onload = function () {
+      try {
+        var canvas = document.createElement('canvas');
+        canvas.width = loader.naturalWidth;
+        canvas.height = loader.naturalHeight;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(loader, 0, 0);
+
+        blocks.forEach(function (block) {
+          if (!block.translatedText || !block.rect || !block.imageWidth || !block.imageHeight) return;
+          var scaleX = loader.naturalWidth / block.imageWidth;
+          var scaleY = loader.naturalHeight / block.imageHeight;
+          var x = block.rect.x * scaleX;
+          var y = block.rect.y * scaleY;
+          var w = block.rect.width * scaleX;
+          var h = block.rect.height * scaleY;
+
+          // Margem extra — o bounding box do OCR às vezes fica um pouco menor
+          // que a extensão visual real do texto (confirmado em teste real:
+          // sem isso, sobra um resquício do texto original nas bordas).
+          var pad = Math.max(2, h * 0.15);
+          x -= pad; y -= pad; w += pad * 2; h += pad * 2;
+
+          ctx.fillStyle = block.bgColor || 'rgb(255,255,255)';
+          ctx.fillRect(x, y, w, h);
+
+          ctx.fillStyle = textColorFor(block.bgColor);
+          ctx.textBaseline = 'middle';
+          ctx.font = Math.max(10, Math.floor(h * 0.7)) + 'px sans-serif';
+          ctx.fillText(block.translatedText, x + 2, y + h / 2, Math.max(1, w - 4));
+        });
+
+        // toDataURL lança se o canvas "tainted" (CDN da imagem sem CORS) —
+        // nesse caso não dá pra exportar, deixa a imagem original mesmo.
+        img.setAttribute('src', canvas.toDataURL('image/png'));
+      } catch (e) { /* canvas tainted ou outro erro — mantém original */ }
+    };
+    loader.onerror = function () { /* falha ao (re)carregar — mantém original */ };
+    loader.src = originalSrc;
+  }
+
+  function requestImageTranslation(imgs, config) {
+    var urls = imgs.map(function (img) { return rememberOriginalAttr(img, 'src'); });
+    fetch(API_ORIGIN + '/storefront/translate-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        store: STORE_ID,
+        imageUrls: urls,
+        sourceLang: config.sourceLanguage,
+        targetLang: config.targetLanguage,
+      }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var images = data.images || {};
+        imgs.forEach(function (img, i) {
+          var entry = images[urls[i]];
+          if (entry && entry.blocks && entry.blocks.length > 0) drawOverlay(img, entry.blocks);
+        });
+      })
+      .catch(function () { /* falha silenciosa */ });
+  }
+
+  function collectEligibleImages(root) {
+    var imgs = [];
+    if (root.tagName === 'IMG') imgs.push(root);
+    if (root.querySelectorAll) {
+      var found = root.querySelectorAll('img');
+      for (var i = 0; i < found.length; i++) imgs.push(found[i]);
+    }
+    return imgs.filter(function (img) {
+      return !(img.closest && img.closest('[data-notranslate]'));
+    });
+  }
+
+  function translateImageText(root, config) {
+    if (!config.translateImages) return;
+    var candidates = collectEligibleImages(root);
+    if (candidates.length === 0) return;
+
+    var pending = candidates.length;
+    var loaded = [];
+    candidates.forEach(function (img) {
+      withLoadedImage(img, function (ok) {
+        if (ok) loaded.push(img);
+        pending -= 1;
+        if (pending === 0) {
+          var bigEnough = loaded.filter(function (im) {
+            return im.naturalWidth >= IMAGE_MIN_SIZE || im.naturalHeight >= IMAGE_MIN_SIZE;
+          });
+          for (var i = 0; i < bigEnough.length; i += IMAGE_BATCH_SIZE) {
+            requestImageTranslation(bigEnough.slice(i, i + IMAGE_BATCH_SIZE), config);
+          }
+        }
+      });
+    });
   }
 
   // ─── Tradução + conversão de preço, em lote ───────────────────────────────
@@ -279,6 +476,9 @@
     for (var j = 0; j < attrItems.length; j += TEXT_BATCH_SIZE) {
       applyToAttrs(attrItems.slice(j, j + TEXT_BATCH_SIZE), config);
     }
+
+    applyHeadTranslation(config);
+    translateImageText(document.body, config);
   }
 
   // ─── País/config atualmente aplicado (geoip OU seleção manual) ───────────
@@ -298,11 +498,13 @@
       pending = setTimeout(function () {
         var newNodes = [];
         var newAttrItems = [];
+        var newRoots = [];
         mutations.forEach(function (m) {
           m.addedNodes.forEach(function (added) {
             if (added.nodeType === 1) {
               newNodes = newNodes.concat(collectTextNodes(added));
               newAttrItems = newAttrItems.concat(collectTranslatableAttrs(added));
+              newRoots.push(added);
             } else if (added.nodeType === 3 && added.nodeValue && added.nodeValue.trim()) {
               newNodes.push(added);
             }
@@ -310,6 +512,7 @@
         });
         if (newNodes.length > 0) applyToNodes(newNodes, CURRENT_CONFIG);
         if (newAttrItems.length > 0) applyToAttrs(newAttrItems, CURRENT_CONFIG);
+        newRoots.forEach(function (root) { translateImageText(root, CURRENT_CONFIG); });
       }, 300);
     });
     observer.observe(document.body, { childList: true, subtree: true });
@@ -322,6 +525,7 @@
     } else {
       restoreOriginals();
       restoreOriginalAttrs();
+      restoreHeadOriginals();
     }
   }
 

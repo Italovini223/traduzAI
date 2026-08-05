@@ -259,6 +259,7 @@ model StoreTranslationConfig {
   enabled        Boolean  @default(false)
   sourceLanguage String   @default("pt") // idioma original do conteúdo da loja
   baseCurrency   String   @default("BRL") // moeda original dos preços
+  translateImages Boolean @default(false) // opt-in — chama Google Vision (custo externo)
   scriptId       String?  // id retornado pela Nuvemshop Script API
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -309,12 +310,27 @@ model OrderRecord {
   storeId          Int
   store            Store    @relation(fields: [storeId], references: [id])
   nuvemshopOrderId String
-  country          String?  // ISO 3166-1 alpha-2 — shipping_address, fallback billing_address
-  amount           Float    // total_paid_by_customer
+  country          String?  // ISO 3166-1 alpha-2 — shipping_address, fallback billing_country
+  amount           Float    // order.total (nao total_paid_by_customer, que nao existe na resposta real)
   currency         String
   paidAt           DateTime
   createdAt        DateTime @default(now())
   @@unique([storeId, nuvemshopOrderId])
   @@index([storeId, paidAt])
   @@map("order_records")
+}
+
+// Cache global (como TranslationCache) de blocos de texto detectados por OCR
+// numa imagem + tradução — evita rechamar a Vision API pra imagem repetida
+// (mesmo banner aparece em várias páginas/lojas). blocks é o array retornado
+// por VisionService.detectTextBlocks() + translatedText por bloco.
+model ImageTextCache {
+  id           Int      @id @default(autoincrement())
+  imageUrlHash String   // sha256(imageUrl)
+  targetLang   String
+  blocks       Json     // [{ text, translatedText, rect:{x,y,width,height}, imageWidth, imageHeight, bgColor }]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  @@unique([imageUrlHash, targetLang])
+  @@map("image_text_cache")
 }

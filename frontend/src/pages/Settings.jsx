@@ -10,11 +10,12 @@ export default function Settings() {
   const [options, setOptions] = useState({ countries: [], languages: [], currencies: [], defaults: {} });
   const [loadingOptions, setLoadingOptions] = useState(true);
 
-  const [config, setConfig] = useState({ enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL' });
+  const [config, setConfig] = useState({ enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL', translateImages: false });
   const [rules, setRules] = useState([]);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [savingToggle, setSavingToggle] = useState(false);
   const [savingSource, setSavingSource] = useState(false);
+  const [savingImages, setSavingImages] = useState(false);
 
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -51,7 +52,7 @@ export default function Settings() {
     setLoadingConfig(true);
     try {
       const res = await api.get('/api/translations/config');
-      setConfig(res.data?.config || { enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL' });
+      setConfig(res.data?.config || { enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL', translateImages: false });
       setRules(res.data?.rules || []);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -70,6 +71,19 @@ export default function Settings() {
       setError(err.response?.data?.error || err.message);
     } finally {
       setSavingToggle(false);
+    }
+  };
+
+  const handleToggleImages = async () => {
+    setSavingImages(true);
+    setError(null);
+    try {
+      const res = await api.put('/api/translations/config', { translateImages: !config.translateImages });
+      setConfig(res.data.config);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setSavingImages(false);
     }
   };
 
@@ -153,6 +167,18 @@ export default function Settings() {
                 disabled={savingToggle}
                 onChange={handleToggleEnabled}
               />
+
+              <Box display="flex" flexDirection="column" gap="1">
+                <Toggle
+                  name="translate-images"
+                  label={config.translateImages ? t('translations.imagesOn') : t('translations.imagesOff')}
+                  active={config.translateImages}
+                  checked={config.translateImages}
+                  disabled={savingImages}
+                  onChange={handleToggleImages}
+                />
+                <Text fontSize="caption" color="neutral-textLow">{t('translations.imagesHint')}</Text>
+              </Box>
             </Box>
           )}
         </Card.Body>

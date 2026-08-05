@@ -5,6 +5,7 @@ const prisma = require('../lib/prisma');
 const { AppError } = require('../lib/errors');
 const { DeepLService } = require('../config/deepl');
 const { ExchangeRateService } = require('../config/exchangeRate');
+const { VisionService } = require('../config/vision');
 const { isValidLanguage, SUPPORTED_COUNTRIES, COUNTRY_DEFAULTS } = require('../lib/localeOptions');
 
 const router = express.Router();
@@ -138,6 +139,7 @@ router.get('/config', async (req, res, next) => {
       baseCurrency: config.baseCurrency,
       targetCurrency: rule.currency,
       rate,
+      translateImages: config.translateImages,
     });
   } catch (err) {
     next(err);
@@ -212,6 +214,100 @@ router.post('/translate', async (req, res, next) => {
 
     const translations = safeTexts.map((text, i) => cacheMap.get(hashes[i]) ?? text);
     res.json({ translations });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const MAX_IMAGES_PER_REQUEST = 15;
+
+/**
+ * POST /storefront/translate-image
+ * body: { store, imageUrls: [...], sourceLang, targetLang }
+ * Detecta texto embutido em imagem (OCR via Google Vision) + traduz, com
+ * cache (ImageTextCache) — so chama a API externa pra imagem/idioma que
+ * ainda nao foi processado (inclusive "sem texto encontrado" fica em cache,
+ * pra nao reprocessar foto de produto sem texto a cada load de pagina).
+ * Feature opt-in: so roda se translateImages estiver habilitado na loja.
+ */
+router.post('/translate-image', async (req, res, next) => {
+  try {
+    const { store: nuvemshopId, imageUrls, sourceLang, targetLang } = req.body;
+
+    if (!nuvemshopId) {
+      throw new AppError('Parametro store obrigatorio.', 400, 'MISSING_STORE');
+    }
+    if (!Array.isArray(imageUrls) || imageUrls.length === 0) {
+      throw new AppError('imageUrls deve ser um array nao vazio.', 400, 'INVALID_IMAGE_URLS');
+    }
+    if (imageUrls.length > MAX_IMAGES_PER_REQUEST) {
+      throw new AppError(`Maximo de ${MAX_IMAGES_PER_REQUEST} imagens por requisicao.`, 400, 'TOO_MANY_IMAGES');
+    }
+    if (!isValidLanguage(targetLang)) {
+      throw new AppError('targetLang invalido.', 400, 'INVALID_LANGUAGE');
+    }
+
+    const store = await prisma.store.findUnique({
+      where: { nuvemshopId: String(nuvemshopId) },
+      include: { translationConfig: true },
+    });
+
+    if (!store || !store.translationConfig?.enabled || !store.translationConfig?.translateImages) {
+      return res.json({ images: {} });
+    }
+
+    const safeUrls = imageUrls.map((u) => String(u).slice(0, 2000));
+    const hashes = safeUrls.map(sha256);
+
+    const cached = await prisma.imageTextCache.findMany({
+      where: { imageUrlHash: { in: hashes }, targetLang },
+    });
+    const cacheMap = new Map(cached.map((c) => [c.imageUrlHash, c.blocks]));
+
+    const images = {};
+    const toProcess = [];
+    safeUrls.forEach((url, i) => {
+      const hash = hashes[i];
+      if (cacheMap.has(hash)) {
+        images[url] = { blocks: cacheMap.get(hash) };
+      } else {
+        toProcess.push({ url, hash });
+      }
+    });
+
+    for (const { url, hash } of toProcess) {
+      // detectTextBlocks lanca em erro real (rede/API) — so cacheia quando
+      // a chamada teve SUCESSO (inclusive "sem texto encontrado", que e um
+      // resultado valido). Erro transitorio nunca deve virar cache
+      // permanente de "sem texto" — ja aconteceu de verdade, ver vision.js.
+      let detected;
+      try {
+        detected = await VisionService.detectTextBlocks(url);
+      } catch (err) {
+        console.error('[storefront] detectTextBlocks falhou pra', url, '-', err.message);
+        images[url] = { blocks: [] };
+        continue;
+      }
+
+      let blocksWithTranslation = [];
+      if (detected.length > 0) {
+        const texts = detected.map((b) => b.text);
+        const translations = await DeepLService.translateBatch(texts, targetLang, sourceLang);
+        blocksWithTranslation = detected.map((b, i) => ({ ...b, translatedText: translations[i] || b.text }));
+      }
+
+      images[url] = { blocks: blocksWithTranslation };
+
+      try {
+        await prisma.imageTextCache.upsert({
+          where: { imageUrlHash_targetLang: { imageUrlHash: hash, targetLang } },
+          update: { blocks: blocksWithTranslation },
+          create: { imageUrlHash: hash, targetLang, blocks: blocksWithTranslation },
+        });
+      } catch { /* cache best-effort — nao impede a resposta */ }
+    }
+
+    res.json({ images });
   } catch (err) {
     next(err);
   }
