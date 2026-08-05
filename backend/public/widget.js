@@ -334,8 +334,23 @@
     return luminance > 0.6 ? '#000000' : '#ffffff';
   }
 
-  function drawOverlay(img, blocks) {
-    var originalSrc = rememberOriginalAttr(img, 'src');
+  // Acha o maior tamanho de fonte que cabe em maxWidth sem estourar
+  // maxHeight — usar o parâmetro maxWidth do fillText em vez disso comprime
+  // a fonte horizontalmente (letras espremidas, ilegível — confirmado em
+  // teste real). Reduzir o tamanho da fonte preserva a proporção normal.
+  function fitFontSize(ctx, text, maxWidth, maxHeight) {
+    var size = Math.max(6, Math.floor(maxHeight));
+    ctx.font = size + 'px sans-serif';
+    while (size > 6 && ctx.measureText(text).width > maxWidth) {
+      size -= 1;
+      ctx.font = size + 'px sans-serif';
+    }
+    return size;
+  }
+
+  function drawOverlay(img, blocks, resolvedUrl) {
+    rememberOriginalAttr(img, 'src'); // registra o valor original do atributo pra restaurar depois
+    rememberOriginalAttr(img, 'srcset');
     var loader = new Image();
     loader.crossOrigin = 'anonymous';
     loader.onload = function () {
@@ -364,23 +379,46 @@
           ctx.fillStyle = block.bgColor || 'rgb(255,255,255)';
           ctx.fillRect(x, y, w, h);
 
+          // translatedText normalmente é uma linha só (rect agora vem por
+          // parágrafo do Vision, não por bloco inteiro) — troca defensiva de
+          // quebra de linha por espaço cobre o caso raro de vir com \n.
+          var line = block.translatedText.replace(/\n/g, ' ');
           ctx.fillStyle = textColorFor(block.bgColor);
           ctx.textBaseline = 'middle';
-          ctx.font = Math.max(10, Math.floor(h * 0.7)) + 'px sans-serif';
-          ctx.fillText(block.translatedText, x + 2, y + h / 2, Math.max(1, w - 4));
+          ctx.textAlign = 'center';
+          var fontSize = fitFontSize(ctx, line, Math.max(1, w - 4), h * 0.85);
+          ctx.font = fontSize + 'px sans-serif';
+          ctx.fillText(line, x + w / 2, y + h / 2);
         });
 
         // toDataURL lança se o canvas "tainted" (CDN da imagem sem CORS) —
         // nesse caso não dá pra exportar, deixa a imagem original mesmo.
         img.setAttribute('src', canvas.toDataURL('image/png'));
+        // srcset tem prioridade sobre src na escolha de imagem do navegador
+        // quando os dois estão presentes — sem remover, o navegador continua
+        // renderindo a imagem original mesmo com o src trocado (confirmado
+        // em teste real: banner do tema usa srcset, overlay ficava sem
+        // nenhum efeito visual apesar do src ter sido trocado com sucesso).
+        img.removeAttribute('srcset');
       } catch (e) { /* canvas tainted ou outro erro — mantém original */ }
     };
     loader.onerror = function () { /* falha ao (re)carregar — mantém original */ };
-    loader.src = originalSrc;
+    loader.src = resolvedUrl;
+  }
+
+  // Usa a propriedade currentSrc/src (resolvida pelo navegador), nunca
+  // getAttribute('src') — temas Nuvemshop servem banner com URL
+  // protocol-relative ("//cdn.../img.webp") e/ou via srcset com um
+  // placeholder no atributo src; getAttribute('src') devolve esse valor
+  // literal (não-absoluto ou ainda placeholder), o que faz o backend
+  // (axios) rejeitar como "Invalid URL" ou pedir texto numa imagem errada
+  // — confirmado em teste real contra a loja de produção.
+  function resolveImageUrl(img) {
+    return img.currentSrc || img.src;
   }
 
   function requestImageTranslation(imgs, config) {
-    var urls = imgs.map(function (img) { return rememberOriginalAttr(img, 'src'); });
+    var urls = imgs.map(resolveImageUrl);
     fetch(API_ORIGIN + '/storefront/translate-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -396,7 +434,7 @@
         var images = data.images || {};
         imgs.forEach(function (img, i) {
           var entry = images[urls[i]];
-          if (entry && entry.blocks && entry.blocks.length > 0) drawOverlay(img, entry.blocks);
+          if (entry && entry.blocks && entry.blocks.length > 0) drawOverlay(img, entry.blocks, urls[i]);
         });
       })
       .catch(function () { /* falha silenciosa */ });
@@ -499,7 +537,16 @@
         var newNodes = [];
         var newAttrItems = [];
         var newRoots = [];
+        var lazyImages = [];
         mutations.forEach(function (m) {
+          if (m.type === 'attributes') {
+            var el = m.target;
+            if (el.tagName === 'IMG' && lazyImages.indexOf(el) === -1) {
+              var src = el.getAttribute('src') || '';
+              if (src && src.indexOf('data:') !== 0) lazyImages.push(el);
+            }
+            return;
+          }
           m.addedNodes.forEach(function (added) {
             if (added.nodeType === 1) {
               newNodes = newNodes.concat(collectTextNodes(added));
@@ -513,9 +560,16 @@
         if (newNodes.length > 0) applyToNodes(newNodes, CURRENT_CONFIG);
         if (newAttrItems.length > 0) applyToAttrs(newAttrItems, CURRENT_CONFIG);
         newRoots.forEach(function (root) { translateImageText(root, CURRENT_CONFIG); });
+        // Sliders lazy (Swiper etc.) recebem a URL real da imagem via mutação
+        // do atributo src, não inserção de nó novo — sem isso, o banner nunca
+        // é re-tentado: no load inicial o <img> ainda está com src vazio, o
+        // withLoadedImage já resolve ok=false na hora e o elemento é
+        // descartado pra sempre (confirmado em teste real: banner de texto
+        // ficava sempre de fora do lote enviado pro backend).
+        lazyImages.forEach(function (img) { translateImageText(img, CURRENT_CONFIG); });
       }, 300);
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
   }
 
   function applyCountry(config) {

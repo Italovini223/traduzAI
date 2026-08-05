@@ -13,15 +13,13 @@ function isConfigured() {
   return key.length > 0 && !key.includes('CHANGE_ME');
 }
 
-// Concatena um bloco (paragraphs -> words -> symbols) em texto legível.
-// A API não expõe um campo de texto plano por bloco, só a árvore de símbolos.
-function blockToText(block) {
-  const lines = (block.paragraphs || []).map((p) =>
-    (p.words || [])
-      .map((w) => (w.symbols || []).map((s) => s.text).join(''))
-      .join(' ')
-  );
-  return lines.join('\n').trim();
+// Concatena um parágrafo (words -> symbols) em texto legível. A API não
+// expõe um campo de texto plano, só a árvore de símbolos.
+function paragraphToText(paragraph) {
+  return (paragraph.words || [])
+    .map((w) => (w.symbols || []).map((s) => s.text).join(''))
+    .join(' ')
+    .trim();
 }
 
 // vertices podem omitir x/y quando o valor é 0 (comportamento do protobuf/JSON
@@ -127,14 +125,24 @@ const VisionService = {
     const imageWidth = page.width;
     const imageHeight = page.height;
 
+    // Um "bloco" do Vision pode conter várias linhas com tamanhos de fonte
+    // bem diferentes (ex.: título pequeno + headline grande + subtítulo —
+    // comum em banner). Achatar tudo num retângulo só faz a sobreposição
+    // perder a hierarquia visual e forçar todo o texto num único tamanho de
+    // fonte espremido. Cada "parágrafo" do Vision já corresponde a uma linha
+    // com bounding box própria — usar essa granularidade preserva posição e
+    // proporção de cada linha (confirmado em teste real: banner com 3 linhas
+    // de tamanhos diferentes só ficou legível depois dessa troca).
     const blocks = [];
     for (const block of page.blocks) {
-      const text = blockToText(block);
-      const rect = boundingRect(block.boundingBox);
-      if (!text || !rect) continue;
+      for (const paragraph of block.paragraphs || []) {
+        const text = paragraphToText(paragraph);
+        const rect = boundingRect(paragraph.boundingBox);
+        if (!text || !rect) continue;
 
-      const bgColor = await sampleBackgroundColor(imageBuffer, rect, imageWidth, imageHeight);
-      blocks.push({ text, rect, imageWidth, imageHeight, bgColor });
+        const bgColor = await sampleBackgroundColor(imageBuffer, rect, imageWidth, imageHeight);
+        blocks.push({ text, rect, imageWidth, imageHeight, bgColor });
+      }
     }
     return blocks;
   },
