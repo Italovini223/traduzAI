@@ -31,6 +31,8 @@ model Store {
   translationConfig StoreTranslationConfig?
   localeRules       StoreLocaleRule[]
   orderRecords      OrderRecord[]
+  translationOverrides StoreTranslationOverride[]
+  bannerOverrides   StoreBannerOverride[]
   @@map("stores")
 }
 
@@ -277,6 +279,44 @@ model StoreLocaleRule {
   updatedAt DateTime @updatedAt
   @@unique([storeId, country])
   @@map("store_locale_rules")
+}
+
+// Correção manual do lojista pra um texto traduzido específico — checada
+// ANTES do TranslationCache/DeepL em POST /storefront/translate. Por loja
+// (ao contrário do TranslationCache, que é global): o mesmo texto original
+// pode existir em várias lojas com temas parecidos, e a correção de uma
+// loja não deve "vazar" pra tradução automática de outra.
+model StoreTranslationOverride {
+  id           Int      @id @default(autoincrement())
+  storeId      Int
+  store        Store    @relation(fields: [storeId], references: [id])
+  sourceHash   String   // sha256(sourceText) — mesmo cálculo do TranslationCache
+  sourceText   String   // texto original (pt-BR), guardado pra exibir na lista do admin
+  targetLang   String
+  overrideText String   // tradução corrigida pelo lojista
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  @@unique([storeId, sourceHash, targetLang])
+  @@map("store_translation_overrides")
+}
+
+// Banner traduzido manualmente pelo lojista (imagem de verdade, não overlay
+// de canvas) — checado ANTES do OCR/Vision em POST /storefront/translate-image.
+// Por loja, igual StoreTranslationOverride: a mesma URL de imagem pode
+// existir em lojas diferentes com o mesmo tema, a substituição de uma loja
+// não deve valer pra outra.
+model StoreBannerOverride {
+  id                Int      @id @default(autoincrement())
+  storeId           Int
+  store             Store    @relation(fields: [storeId], references: [id])
+  originalImageHash String   // sha256(URL da imagem original) — mesmo padrão do ImageTextCache
+  originalImageUrl  String   // guardado só pra exibir no admin qual banner está sendo substituído
+  targetLang        String
+  replacementImage  String   @db.Text // data: URL base64 da imagem enviada pelo lojista
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  @@unique([storeId, originalImageHash, targetLang])
+  @@map("store_banner_overrides")
 }
 
 model TranslationCache {

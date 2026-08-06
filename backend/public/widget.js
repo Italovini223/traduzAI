@@ -323,8 +323,20 @@
   function withLoadedImage(img, cb) {
     if (img.complete && img.naturalWidth > 0) { cb(true); return; }
     if (img.complete) { cb(false); return; } // completou sem dimensão = imagem quebrada
-    img.addEventListener('load', function () { cb(true); }, { once: true });
-    img.addEventListener('error', function () { cb(false); }, { once: true });
+    var done = false;
+    function finish(ok) {
+      if (done) return;
+      done = true;
+      cb(ok);
+    }
+    img.addEventListener('load', function () { finish(true); }, { once: true });
+    img.addEventListener('error', function () { finish(false); }, { once: true });
+    // Carrossel que troca a src continuamente pode abandonar um carregamento
+    // em voo sem nunca disparar load nem error — sem esse limite, essa única
+    // imagem trava o contador "pending" pra sempre e o LOTE INTEIRO (todas as
+    // outras imagens também) nunca é enviado pro backend (confirmado em teste
+    // real: troca de bandeira às vezes não traduzia banner nenhum).
+    setTimeout(function () { finish(img.complete && img.naturalWidth > 0); }, 2500);
   }
 
   function textColorFor(bgColor) {
@@ -413,8 +425,34 @@
   // literal (não-absoluto ou ainda placeholder), o que faz o backend
   // (axios) rejeitar como "Invalid URL" ou pedir texto numa imagem errada
   // — confirmado em teste real contra a loja de produção.
+  //
+  // Guarda a última URL "real" (não data:) vista pra cada <img> — depois que
+  // drawOverlay troca o src pelo data: URL do overlay, currentSrc passa a
+  // devolver ESSE data: URL; sem esse cache, toda re-tradução (ex.: troca de
+  // país de novo) mandaria o data: URL pro backend (que falha, não é uma
+  // imagem buscável) e o banner ficava travado pra sempre na 1ª tradução
+  // aplicada, nunca acompanhando a troca de idioma (confirmado em teste
+  // real). Se o carrossel trocar pra uma imagem realmente nova (URL real,
+  // não data:), o cache atualiza normalmente.
+  var LAST_REAL_URL = new WeakMap();
+
   function resolveImageUrl(img) {
-    return img.currentSrc || img.src;
+    var live = img.currentSrc || img.src;
+    if (live.indexOf('data:') !== 0) {
+      LAST_REAL_URL.set(img, live);
+      return live;
+    }
+    return LAST_REAL_URL.get(img) || live;
+  }
+
+  // Banner enviado manualmente pelo lojista pra esse idioma — troca direta,
+  // sem OCR/canvas (é uma imagem de verdade, não uma sobreposição em cima da
+  // original).
+  function swapImage(img, replacementImage) {
+    rememberOriginalAttr(img, 'src');
+    rememberOriginalAttr(img, 'srcset');
+    img.setAttribute('src', replacementImage);
+    img.removeAttribute('srcset');
   }
 
   function requestImageTranslation(imgs, config) {
@@ -434,7 +472,16 @@
         var images = data.images || {};
         imgs.forEach(function (img, i) {
           var entry = images[urls[i]];
-          if (entry && entry.blocks && entry.blocks.length > 0) drawOverlay(img, entry.blocks, urls[i]);
+          if (!entry) return;
+          // Carrossel pode já ter trocado essa imagem pra outra enquanto a
+          // tradução ia e voltava do backend — sobrepor conteúdo de uma
+          // imagem antiga na foto nova que está lá agora fica errado.
+          if (resolveImageUrl(img) !== urls[i]) return;
+          if (entry.replacementImage) {
+            swapImage(img, entry.replacementImage);
+          } else if (entry.blocks && entry.blocks.length > 0) {
+            drawOverlay(img, entry.blocks, urls[i]);
+          }
         });
       })
       .catch(function () { /* falha silenciosa */ });
@@ -452,16 +499,24 @@
     });
   }
 
-  function translateImageText(root, config) {
-    if (!config.translateImages) return;
-    var candidates = collectEligibleImages(root);
-    if (candidates.length === 0) return;
+  // Tentativas extras pra imagem que ainda não tinha carregado no instante da
+  // coleta (comum em carrossel com autoplay/troca contínua de src) — sem
+  // isso, ela só ganharia outra chance se a src mudasse de novo depois (via
+  // observer de atributo), o que pode não acontecer tão rápido (confirmado
+  // em teste real: banner às vezes só traduzia as cópias fora de tela do
+  // carrossel, nunca a que estava visível no momento da troca de país).
+  var IMAGE_RETRY_DELAYS_MS = [800, 2000];
 
-    var pending = candidates.length;
+  function processImages(imgs, config, retriesLeft) {
+    if (imgs.length === 0) return;
+    if (retriesLeft === undefined) retriesLeft = IMAGE_RETRY_DELAYS_MS.length;
+
+    var pending = imgs.length;
     var loaded = [];
-    candidates.forEach(function (img) {
+    var notReady = [];
+    imgs.forEach(function (img) {
       withLoadedImage(img, function (ok) {
-        if (ok) loaded.push(img);
+        if (ok) loaded.push(img); else notReady.push(img);
         pending -= 1;
         if (pending === 0) {
           var bigEnough = loaded.filter(function (im) {
@@ -470,9 +525,20 @@
           for (var i = 0; i < bigEnough.length; i += IMAGE_BATCH_SIZE) {
             requestImageTranslation(bigEnough.slice(i, i + IMAGE_BATCH_SIZE), config);
           }
+          if (notReady.length > 0 && retriesLeft > 0) {
+            setTimeout(function () {
+              processImages(notReady, config, retriesLeft - 1);
+            }, IMAGE_RETRY_DELAYS_MS[IMAGE_RETRY_DELAYS_MS.length - retriesLeft]);
+          }
         }
       });
     });
+  }
+
+  function translateImageText(root, config) {
+    if (!config.translateImages) return;
+    var candidates = collectEligibleImages(root);
+    processImages(candidates, config);
   }
 
   // ─── Tradução + conversão de preço, em lote ───────────────────────────────

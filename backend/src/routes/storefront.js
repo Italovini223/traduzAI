@@ -177,6 +177,13 @@ router.post('/translate', async (req, res, next) => {
     const safeTexts = texts.map((t) => String(t).slice(0, MAX_TEXT_LENGTH));
     const hashes = safeTexts.map(sha256);
 
+    // Correção manual do lojista pra esse texto — checada ANTES do cache
+    // global/DeepL. Por loja (não vaza pra outras lojas com o mesmo texto).
+    const overrides = await prisma.storeTranslationOverride.findMany({
+      where: { storeId: store.id, sourceHash: { in: hashes }, targetLang },
+    });
+    const overrideMap = new Map(overrides.map((o) => [o.sourceHash, o.overrideText]));
+
     const cached = await prisma.translationCache.findMany({
       where: { sourceHash: { in: hashes }, sourceLang: sourceLang || '', targetLang },
     });
@@ -185,7 +192,7 @@ router.post('/translate', async (req, res, next) => {
     const missIndexes = [];
     const missTexts = [];
     safeTexts.forEach((text, i) => {
-      if (!cacheMap.has(hashes[i])) {
+      if (!overrideMap.has(hashes[i]) && !cacheMap.has(hashes[i])) {
         missIndexes.push(i);
         missTexts.push(text);
       }
@@ -212,7 +219,7 @@ router.post('/translate', async (req, res, next) => {
       }
     }
 
-    const translations = safeTexts.map((text, i) => cacheMap.get(hashes[i]) ?? text);
+    const translations = safeTexts.map((text, i) => overrideMap.get(hashes[i]) ?? cacheMap.get(hashes[i]) ?? text);
     res.json({ translations });
   } catch (err) {
     next(err);
@@ -252,22 +259,46 @@ router.post('/translate-image', async (req, res, next) => {
       include: { translationConfig: true },
     });
 
-    if (!store || !store.translationConfig?.enabled || !store.translationConfig?.translateImages) {
+    if (!store || !store.translationConfig?.enabled) {
       return res.json({ images: {} });
     }
 
     const safeUrls = imageUrls.map((u) => String(u).slice(0, 2000));
     const hashes = safeUrls.map(sha256);
 
+    // Banner personalizado (upload manual do lojista) tem prioridade e não
+    // depende do toggle de tradução automática — sem custo de Vision, é uma
+    // imagem de verdade em vez de overlay de canvas em cima da original.
+    const bannerOverrides = await prisma.storeBannerOverride.findMany({
+      where: { storeId: store.id, originalImageHash: { in: hashes }, targetLang },
+    });
+    const bannerMap = new Map(bannerOverrides.map((b) => [b.originalImageHash, b.replacementImage]));
+
+    const images = {};
+    const pendingUrls = [];
+    const pendingHashes = [];
+    safeUrls.forEach((url, i) => {
+      const hash = hashes[i];
+      if (bannerMap.has(hash)) {
+        images[url] = { blocks: [], replacementImage: bannerMap.get(hash) };
+      } else {
+        pendingUrls.push(url);
+        pendingHashes.push(hash);
+      }
+    });
+
+    if (!store.translationConfig?.translateImages || pendingUrls.length === 0) {
+      return res.json({ images });
+    }
+
     const cached = await prisma.imageTextCache.findMany({
-      where: { imageUrlHash: { in: hashes }, targetLang },
+      where: { imageUrlHash: { in: pendingHashes }, targetLang },
     });
     const cacheMap = new Map(cached.map((c) => [c.imageUrlHash, c.blocks]));
 
-    const images = {};
     const toProcess = [];
-    safeUrls.forEach((url, i) => {
-      const hash = hashes[i];
+    pendingUrls.forEach((url, i) => {
+      const hash = pendingHashes[i];
       if (cacheMap.has(hash)) {
         images[url] = { blocks: cacheMap.get(hash) };
       } else {
