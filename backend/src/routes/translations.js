@@ -34,40 +34,91 @@ function sha256(text) {
 // escolhe visualmente pela miniatura, então falso positivo é inofensivo).
 const MIN_BANNER_WIDTH_HINT = 600;
 
-// Selo de segurança, "powered by", placeholder de lazy-load — não são
-// candidatos plausíveis a banner, aparecem em quase todo tema Nuvemshop e só
-// gerariam ruído na grade de miniaturas (confirmado em teste real contra a
-// loja de produção: apareceram junto do banner de verdade).
-const EXCLUDED_PATTERNS = /logo|placeholder|safe-google|loja_segura|selo|badge|favicon|sprite/i;
+// Selo de segurança, "powered by", placeholder de lazy-load, imagem de
+// PRODUTO do catálogo (path "/products/", nunca é banner de tema) — não são
+// candidatos plausíveis a banner e só disputariam espaço com o banner de
+// verdade no limite de MAX_BANNER_CANDIDATES (confirmado em teste real
+// contra a loja de produção: o catálogo tem muito mais imagens de produto
+// que de banner, e elas enchiam a lista antes do banner real aparecer).
+const EXCLUDED_PATTERNS = /logo|placeholder|safe-google|loja_segura|selo|badge|favicon|sprite|\/products\//i;
+
+// Cobre as várias convenções de lazy-load usadas por temas Nuvemshop (nem
+// todo tema usa "data-src") + srcset/data-srcset, que trazem VÁRIAS
+// variantes de resolução na mesma URL (ex.: "a.webp 480w, b.webp 1920w") —
+// sem pegar isso, a variante grande (a que de fato é o banner) podia nunca
+// aparecer no HTML puro se só a pequena viesse solta em "src".
+const IMG_ATTR_REGEX = /(?:src|data-src|data-original|data-lazy-src|data-lazy|srcset|data-srcset)\s*=\s*["']([^"']+)["']/gi;
+const DIMENSION_HINT_REGEX = /-(\d{2,5})-(\d{1,5})\.\w+(?:\?.*)?$/;
+
+// srcset/data-srcset trazem "url descriptor, url descriptor, ..." — separa
+// por vírgula e pega só a URL de cada entrada (ignora o "480w"/"2x" etc).
+// Nunca faz esse split em data: URI — o payload base64 pode ter vírgula
+// (ex.: "base64,R0lGO...") e o split cortaria no meio, sobrando um pedaço
+// do base64 sem o prefixo "data:" que passaria pelo filtro por engano
+// (confirmado em teste real: virou uma URL quebrada na lista).
+function urlsFromAttrValue(rawValue) {
+  if (rawValue.indexOf('data:') === 0 || rawValue.indexOf(',') === -1) return [rawValue];
+  return rawValue
+    .split(',')
+    .map((part) => part.trim().split(/\s+/)[0])
+    .filter(Boolean);
+}
+
+function addCandidate(urls, raw, baseUrl) {
+  if (!raw || raw.indexOf('data:') === 0) return;
+  if (EXCLUDED_PATTERNS.test(raw)) return;
+
+  let absolute;
+  try {
+    absolute = new URL(raw, baseUrl).href;
+  } catch {
+    return;
+  }
+
+  const dimMatch = DIMENSION_HINT_REGEX.exec(absolute);
+  if (dimMatch && Number(dimMatch[1]) < MIN_BANNER_WIDTH_HINT) return;
+
+  urls.add(absolute);
+}
+
+// srcset traz a MESMA imagem em várias resoluções (640/1024/1920...) — sem
+// deduplicar, a grade de miniaturas mostra o mesmo banner repetido 3-4x e
+// slides realmente diferentes acabam cortados pelo MAX_BANNER_CANDIDATES
+// (confirmado em teste real). Agrupa pela URL sem o sufixo "-W-H.ext" e
+// mantém só a variante de maior largura de cada grupo.
+function dedupeByLargestVariant(urls) {
+  const groups = new Map();
+  urls.forEach((absolute) => {
+    const dimMatch = DIMENSION_HINT_REGEX.exec(absolute);
+    const width = dimMatch ? Number(dimMatch[1]) : Infinity; // sem sufixo → única variante, sempre mantém
+    const baseKey = absolute.split('?')[0].replace(DIMENSION_HINT_REGEX, '');
+    const existing = groups.get(baseKey);
+    if (!existing || width > existing.width) groups.set(baseKey, { url: absolute, width });
+  });
+  return [...groups.values()].map((g) => g.url);
+}
 
 function extractBannerCandidates(html, baseUrl) {
   const urls = new Set();
-  const imgTagRegex = /<img\b[^>]*>/gi;
-  const attrRegex = /(?:src|data-src)\s*=\s*["']([^"']+)["']/i;
-  const dimensionHintRegex = /-(\d{2,5})-(\d{1,5})\.\w+(?:\?.*)?$/;
 
-  const imgTags = html.match(imgTagRegex) || [];
-  imgTags.forEach((tag) => {
-    const match = attrRegex.exec(tag);
-    if (!match) return;
-    const raw = match[1];
-    if (!raw || raw.indexOf('data:') === 0) return;
-    if (EXCLUDED_PATTERNS.test(raw)) return;
-
-    let absolute;
-    try {
-      absolute = new URL(raw, baseUrl).href;
-    } catch {
-      return;
+  const tagRegex = /<(?:img|source)\b[^>]*>/gi;
+  const tags = html.match(tagRegex) || [];
+  tags.forEach((tag) => {
+    let match;
+    IMG_ATTR_REGEX.lastIndex = 0;
+    while ((match = IMG_ATTR_REGEX.exec(tag))) {
+      urlsFromAttrValue(match[1]).forEach((raw) => addCandidate(urls, raw, baseUrl));
     }
-
-    const dimMatch = dimensionHintRegex.exec(absolute);
-    if (dimMatch && Number(dimMatch[1]) < MIN_BANNER_WIDTH_HINT) return;
-
-    urls.add(absolute);
   });
 
-  return [...urls].slice(0, MAX_BANNER_CANDIDATES);
+  // Alguns temas usam banner via CSS (background-image) em vez de <img>.
+  const bgRegex = /background(?:-image)?\s*:\s*url\((['"]?)([^'")]+)\1\)/gi;
+  let bgMatch;
+  while ((bgMatch = bgRegex.exec(html))) {
+    addCandidate(urls, bgMatch[2], baseUrl);
+  }
+
+  return dedupeByLargestVariant(urls).slice(0, MAX_BANNER_CANDIDATES);
 }
 
 // Todas as rotas de tradução exigem loja logada (configuração feita pelo lojista).
