@@ -1027,6 +1027,72 @@ cd backend && npm test
 
 ---
 
+## Roadmap: Funcionalidades Futuras (gap analysis vs. apps Shopify)
+
+Levantamento feito em 2026-08-06 comparando o traduzAI aos apps mais
+populares da coleção "Apps for Store Languages" da Shopify (Translate &
+Adapt, Weglot, Transcy, langify, Hextom, LangShop, Interlingue, Bablic,
+GTranslate) — ver fontes no fim da seção. Objetivo: registrar gaps reais
+antes de esquecer, não implementar ainda. Ordem = prioridade sugerida.
+
+**Já cobrimos e por isso não entram na lista**: tradução de `alt` de
+imagem (`img[alt]` já está no `ATTR_SELECTOR` de `widget.js`) e
+re-tradução de conteúdo dinâmico/AJAX (o `MutationObserver` de
+`ensureObserver()` já cobre isso).
+
+1. **URLs indexáveis por idioma + tags `hreflang`** — hoje traduzimos via
+   JS na MESMA URL; o Google não indexa a versão em outro idioma como
+   página separada. Maior gap real de SEO internacional. Pelo menos
+   adicionar `hreflang` sem reestruturar URL já ajudaria, mesmo sem ir até
+   o fim (subpasta/subdomínio por idioma).
+2. **Tradução do checkout** — reconfirmar viabilidade antes de tentar de
+   novo: já documentado que o checkout usa NubeSDK (Web Worker, sem acesso
+   a DOM), o que provavelmente inviabiliza isso com a arquitetura atual
+   (ver "Limitações da plataforma Nuvemshop" na seção de Storefront).
+3. **Adaptação por variação de dialeto/tom por país**, não só idioma — ex.:
+   espanhol da Argentina vs. México vs. Espanha têm termos/tom diferentes
+   que o DeepL sozinho não pega. Encaixa bem no modelo de regra por país
+   (`StoreLocaleRule`) que já existe — seria um override por país em cima
+   da tradução base.
+4. **Arredondamento de preço convertido** — conversão de moeda pura gera
+   número feio (R$19,34); concorrentes deixam o lojista arredondar pra
+   preço psicológico (R$19,90/,99). Esforço baixo.
+5. **Exportar/importar traduções em CSV** — complementa
+   `StoreTranslationOverride` (edição individual) permitindo edição em
+   lote ou terceirização pra um tradutor humano revisar offline.
+6. **Múltiplos motores de tradução / ajuste de tom de marca** — hoje só
+   `DeepLService`; concorrentes oferecem GPT/Claude/Gemini com glossário
+   de marca/tom configurável, o que melhora qualidade de copy de marketing
+   além da tradução literal.
+7. **Regras globais de exclusão/glossário** — mais amplo que a correção
+   string-a-string do `StoreTranslationOverride` atual: regra por
+   padrão/palavra-chave (ex.: "nunca traduzir SKU", "sempre manter 'Nossa
+   Marca' no original em qualquer lugar que apareça").
+8. **Editor visual in-context** — clicar no elemento na própria vitrine
+   pra corrigir a tradução, em vez de digitar o texto original manualmente
+   no admin (UX melhor pra `StoreTranslationOverride`).
+9. **Personalização visual do seletor de bandeiras** — hoje é
+   posição/estilo fixo (`buildCountryPicker` em `widget.js`); concorrentes
+   deixam o lojista reposicionar/re-estilizar pra bater com a marca.
+
+**Baixa prioridade pro nosso mercado** (LatAm, pt-BR/es/en): idioma RTL
+(não se aplica, sem idioma RTL no público-alvo), tradução de e-mail
+transacional (exigiria integração separada com o sistema de e-mail da
+Nuvemshop, não é o widget de storefront), marketplace de tradução humana
+(custo alto pra fase beta), integração com "Markets" nativo (Nuvemshop não
+tem equivalente direto hoje — reavaliar se a plataforma lançar algo
+parecido), tradução de metafields/metaobjects (Nuvemshop não tem um
+equivalente claro aos metafields do Shopify — investigar antes de
+priorizar).
+
+**Fontes da pesquisa**: coleção
+`https://apps.shopify.com/collections/apps-for-store-languages?locale=pt-BR`
++ páginas individuais de Shopify Translate & Adapt, Transcy, langify,
+Hextom (Translate My Store), LangShop, Interlingue, Bablic Translation,
+Weglot, GTranslate.
+
+---
+
 ## Comportamento Pós-Tarefa — Next Actions
 
 > **IMPORTANTE:** Ao concluir qualquer tarefa significativa (feature, bug fix, refactoring, CRUD, deploy, config), SEMPRE apresentar 3 sugestões de acompanhamento contextuais no final da resposta.

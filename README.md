@@ -117,3 +117,24 @@ moeda. Um load de pagina comum e leitura pura de banco.
   original da loja. Nao afeta o script atual (`location: store`).
 
 Detalhes completos (decisoes, testes, gotchas) em `CLAUDE.md`.
+
+### Roadmap: Proximas Funcionalidades
+
+Levantamento comparando o traduzAI aos apps de traducao mais populares do
+Shopify (Translate & Adapt, Weglot, Transcy, langify, Hextom, LangShop,
+Interlingue, Bablic, GTranslate) — ordem de prioridade:
+
+1. URLs indexaveis por idioma + tags `hreflang` (maior gap de SEO hoje)
+2. Traducao do checkout (reconfirmar viabilidade — ver limitacao NubeSDK acima)
+3. Adaptacao por dialeto/tom por pais, nao so idioma (ex.: es-AR vs es-MX vs es-ES)
+4. Arredondamento de preco convertido (preco psicologico, ex. R$19,90)
+5. Exportar/importar traducoes em CSV
+6. Multiplos motores de traducao / ajuste de tom de marca (hoje so DeepL)
+7. Regras globais de exclusao/glossario (mais amplo que a correcao manual atual)
+8. Editor visual in-context (corrigir traducao clicando na propria vitrine)
+9. Personalizacao visual do seletor de bandeiras
+
+Baixa prioridade pro nosso mercado: idioma RTL, traducao de e-mail
+transacional, marketplace de traducao humana. Detalhes de cada item, apps
+de referencia e por que ja cobrimos alguns gaps (alt de imagem, conteudo
+dinamico) em `CLAUDE.md`.
