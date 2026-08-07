@@ -14,6 +14,7 @@ const {
   isValidRule,
   isValidLanguage,
   isValidCurrency,
+  isValidCountry,
 } = require('../lib/localeOptions');
 
 const router = express.Router();
@@ -479,6 +480,98 @@ router.post('/edit-session', (req, res, next) => {
     const editUrl = `https://${req.store.domain}/?traduzai_edit=${encodeURIComponent(editToken)}`;
 
     res.json({ editToken, editUrl });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const MAX_GLOSSARY_TEXT_LENGTH = 200;
+
+/**
+ * GET /api/translations/glossary — lista os termos de adaptação por país da loja.
+ */
+router.get('/glossary', async (req, res, next) => {
+  try {
+    const terms = await prisma.storeCountryGlossaryTerm.findMany({
+      where: { storeId: req.store.id },
+      orderBy: [{ country: 'asc' }, { createdAt: 'desc' }],
+    });
+    res.json({ terms });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/translations/glossary — cria/atualiza um termo de adaptação por país.
+ * body: { country, findText, replaceText }
+ */
+router.post('/glossary', async (req, res, next) => {
+  try {
+    const { country, findText, replaceText } = req.body;
+
+    if (!isValidCountry(country)) {
+      throw new AppError('Pais invalido.', 400, 'INVALID_COUNTRY');
+    }
+    if (typeof findText !== 'string' || !findText.trim()) {
+      throw new AppError('Termo a substituir obrigatorio.', 400, 'MISSING_FIND_TEXT');
+    }
+    if (typeof replaceText !== 'string' || !replaceText.trim()) {
+      throw new AppError('Termo substituto obrigatorio.', 400, 'MISSING_REPLACE_TEXT');
+    }
+
+    const safeFindText = findText.trim().slice(0, MAX_GLOSSARY_TEXT_LENGTH);
+    const safeReplaceText = replaceText.trim().slice(0, MAX_GLOSSARY_TEXT_LENGTH);
+
+    const term = await prisma.storeCountryGlossaryTerm.upsert({
+      where: { storeId_country_findText: { storeId: req.store.id, country, findText: safeFindText } },
+      update: { replaceText: safeReplaceText },
+      create: { storeId: req.store.id, country, findText: safeFindText, replaceText: safeReplaceText },
+    });
+
+    res.status(201).json({ term });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/translations/glossary/:id — atualiza o termo substituto.
+ */
+router.put('/glossary/:id', async (req, res, next) => {
+  try {
+    const { replaceText } = req.body;
+
+    const term = await prisma.storeCountryGlossaryTerm.findUnique({ where: { id: parseInt(req.params.id) } });
+    if (!term || term.storeId !== req.store.id) {
+      throw new AppError('Termo nao encontrado.', 404, 'GLOSSARY_TERM_NOT_FOUND');
+    }
+    if (typeof replaceText !== 'string' || !replaceText.trim()) {
+      throw new AppError('Termo substituto obrigatorio.', 400, 'MISSING_REPLACE_TEXT');
+    }
+
+    const updated = await prisma.storeCountryGlossaryTerm.update({
+      where: { id: term.id },
+      data: { replaceText: replaceText.trim().slice(0, MAX_GLOSSARY_TEXT_LENGTH) },
+    });
+    res.json({ term: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * DELETE /api/translations/glossary/:id
+ */
+router.delete('/glossary/:id', async (req, res, next) => {
+  try {
+    const term = await prisma.storeCountryGlossaryTerm.findUnique({ where: { id: parseInt(req.params.id) } });
+    if (!term || term.storeId !== req.store.id) {
+      throw new AppError('Termo nao encontrado.', 404, 'GLOSSARY_TERM_NOT_FOUND');
+    }
+
+    await prisma.storeCountryGlossaryTerm.delete({ where: { id: term.id } });
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

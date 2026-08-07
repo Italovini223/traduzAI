@@ -7,7 +7,7 @@ const { AppError } = require('../lib/errors');
 const { DeepLService } = require('../config/deepl');
 const { ExchangeRateService } = require('../config/exchangeRate');
 const { VisionService } = require('../config/vision');
-const { isValidLanguage, SUPPORTED_COUNTRIES, COUNTRY_DEFAULTS } = require('../lib/localeOptions');
+const { isValidLanguage, isValidCountry, SUPPORTED_COUNTRIES, COUNTRY_DEFAULTS } = require('../lib/localeOptions');
 const { upsertTranslationOverride } = require('../lib/translationOverrides');
 
 const router = express.Router();
@@ -26,6 +26,31 @@ const COUNTRY_LABELS = SUPPORTED_COUNTRIES.reduce((acc, c) => {
 
 function sha256(text) {
   return crypto.createHash('sha256').update(text).digest('hex');
+}
+
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Adaptação de dialeto/tom por PAÍS — aplicada em cima da tradução base
+// (override/cache/DeepL), sempre por último. Existe porque o DeepL só tem
+// um "ES" genérico: não distingue espanhol da Argentina/México/Espanha, e
+// termos formais/informais (ex.: "ustedes" vs "vos") variam muito entre
+// eles. Cada termo é um find/replace com borda de palavra, case-insensitive
+// — troca "ustedes" -> "vos" em QUALQUER texto traduzido pra aquele país,
+// sem precisar de uma correção manual por string inteira.
+function applyGlossary(text, terms) {
+  return terms.reduce((result, term) => {
+    const pattern = new RegExp(`\\b${escapeRegExp(term.findText)}\\b`, 'gi');
+    return result.replace(pattern, (match) => {
+      // Preserva maiúscula inicial (comum em início de frase) — sem isso,
+      // "Ustedes" no início de uma frase virava "vos" (minúsculo), quebrando
+      // a formatação natural do texto (confirmado em teste real).
+      const isCapitalized = match[0] !== match[0].toLowerCase() && match[0] === match[0].toUpperCase();
+      if (!isCapitalized) return term.replaceText;
+      return term.replaceText.charAt(0).toUpperCase() + term.replaceText.slice(1);
+    });
+  }, text);
 }
 
 /**
@@ -141,6 +166,7 @@ router.get('/config', async (req, res, next) => {
 
     res.json({
       active: true,
+      country,
       sourceLanguage: config.sourceLanguage,
       targetLanguage: rule.language,
       baseCurrency: config.baseCurrency,
@@ -161,7 +187,7 @@ router.get('/config', async (req, res, next) => {
  */
 router.post('/translate', async (req, res, next) => {
   try {
-    const { store: nuvemshopId, texts, sourceLang, targetLang } = req.body;
+    const { store: nuvemshopId, texts, sourceLang, targetLang, country } = req.body;
 
     if (!nuvemshopId) {
       throw new AppError('Parametro store obrigatorio.', 400, 'MISSING_STORE');
@@ -174,6 +200,9 @@ router.post('/translate', async (req, res, next) => {
     }
     if (!isValidLanguage(targetLang)) {
       throw new AppError('targetLang invalido.', 400, 'INVALID_LANGUAGE');
+    }
+    if (country !== undefined && country !== null && !isValidCountry(country)) {
+      throw new AppError('Pais invalido.', 400, 'INVALID_COUNTRY');
     }
 
     const store = await prisma.store.findUnique({ where: { nuvemshopId: String(nuvemshopId) } });
@@ -236,7 +265,21 @@ router.post('/translate', async (req, res, next) => {
     }
 
     const translations = safeTexts.map((text, i) => overrideMap.get(hashes[i]) ?? cacheMap.get(hashes[i]) ?? text);
-    res.json({ translations });
+
+    // Adaptação de dialeto/tom por país — por último, em cima de qualquer
+    // fonte (override, cache ou DeepL). Só busca se o widget mandou um país
+    // (nem toda chamada manda — ver widget.js).
+    let finalTranslations = translations;
+    if (country) {
+      const glossaryTerms = await prisma.storeCountryGlossaryTerm.findMany({
+        where: { storeId: store.id, country },
+      });
+      if (glossaryTerms.length > 0) {
+        finalTranslations = translations.map((t) => applyGlossary(t, glossaryTerms));
+      }
+    }
+
+    res.json({ translations: finalTranslations });
   } catch (err) {
     next(err);
   }

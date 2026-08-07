@@ -1053,11 +1053,30 @@ re-tradução de conteúdo dinâmico/AJAX (o `MutationObserver` de
    novo: já documentado que o checkout usa NubeSDK (Web Worker, sem acesso
    a DOM), o que provavelmente inviabiliza isso com a arquitetura atual
    (ver "Limitações da plataforma Nuvemshop" na seção de Storefront).
-3. **Adaptação por variação de dialeto/tom por país**, não só idioma — ex.:
-   espanhol da Argentina vs. México vs. Espanha têm termos/tom diferentes
-   que o DeepL sozinho não pega. Encaixa bem no modelo de regra por país
-   (`StoreLocaleRule`) que já existe — seria um override por país em cima
-   da tradução base.
+3. ✅ **Implementado (2026-08-07)** — Adaptação por dialeto/tom por país
+   via glossário de termos (`StoreCountryGlossaryTerm`: `storeId` +
+   `country` + `findText` + `replaceText`, único por
+   `[storeId, country, findText]`). Diferente do `StoreTranslationOverride`
+   (corrige uma STRING EXATA inteira): aqui é find/replace de PALAVRA/TERMO
+   dentro de QUALQUER texto traduzido pra aquele país — ex.: troca
+   "ustedes" por "vos" em toda tradução pra Argentina, sem precisar
+   corrigir cada string uma a uma. Aplicado em `POST /storefront/translate`
+   (`applyGlossary()`, `routes/storefront.js`), SEMPRE por último — depois
+   de override, cache ou DeepL, qualquer que seja a fonte da tradução base.
+   Match é case-insensitive com borda de palavra (`\b`), preservando
+   maiúscula inicial do termo original (evita "Ustedes..." virar "vos..."
+   minúsculo no início de frase — confirmado bug real em teste, corrigido).
+   **Mudança estrutural necessária**: `/storefront/translate` não recebia
+   o país selecionado, só o `targetLang` (AR e MX compartilham "es", mas
+   têm glossários diferentes) — `GET /storefront/config` agora devolve
+   `country` (resolvido por `?country=` ou geoip) na resposta, e
+   `widget.js` reenvia esse valor (`config.country`) em toda chamada a
+   `/storefront/translate` (`applyToNodes`/`applyToAttrs`/
+   `applyHeadTranslation`). Admin: nova seção "Adaptação por país" em
+   Settings.jsx (`CountryGlossary.jsx`), rota `GET/POST/PUT/DELETE
+   /api/translations/glossary`. Testado em produção: mesmo texto-base,
+   com `country=AR` troca o termo, com `country=MX` (ou sem `country`)
+   mantém o original — isolamento por país confirmado.
 4. **Arredondamento de preço convertido** — conversão de moeda pura gera
    número feio (R$19,34); concorrentes deixam o lojista arredondar pra
    preço psicológico (R$19,90/,99). Esforço baixo.

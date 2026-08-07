@@ -229,6 +229,7 @@
         texts: texts,
         sourceLang: config.sourceLanguage,
         targetLang: config.targetLanguage,
+        country: config.country,
       }),
     })
       .then(function (r) { return r.json(); })
@@ -297,6 +298,7 @@
         texts: texts,
         sourceLang: config.sourceLanguage,
         targetLang: config.targetLanguage,
+        country: config.country,
       }),
     })
       .then(function (r) { return r.json(); })
@@ -554,6 +556,7 @@
         texts: texts,
         sourceLang: config.sourceLanguage,
         targetLang: config.targetLanguage,
+        country: config.country,
       }),
     })
       .then(function (r) { return r.json(); })

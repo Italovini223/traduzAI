@@ -5,6 +5,7 @@ import api from '../services/api.js';
 import CountryMapSelector from '../components/CountryMapSelector.jsx';
 import TranslationOverrides from '../components/TranslationOverrides.jsx';
 import BannerOverrides from '../components/BannerOverrides.jsx';
+import CountryGlossary from '../components/CountryGlossary.jsx';
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -23,9 +24,11 @@ export default function Settings() {
   const [rules, setRules] = useState([]);
   const [overrides, setOverrides] = useState([]);
   const [bannerOverrides, setBannerOverrides] = useState([]);
+  const [glossaryTerms, setGlossaryTerms] = useState([]);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [loadingOverrides, setLoadingOverrides] = useState(true);
   const [loadingBannerOverrides, setLoadingBannerOverrides] = useState(true);
+  const [loadingGlossary, setLoadingGlossary] = useState(true);
   const [savingToggle, setSavingToggle] = useState(false);
   const [savingSource, setSavingSource] = useState(false);
   const [savingImages, setSavingImages] = useState(false);
@@ -41,6 +44,7 @@ export default function Settings() {
     loadConfig();
     loadOverrides();
     loadBannerOverrides();
+    loadGlossary();
   }, []);
 
   useEffect(() => {
@@ -277,6 +281,49 @@ export default function Settings() {
     }
   };
 
+  const loadGlossary = async () => {
+    setLoadingGlossary(true);
+    try {
+      const res = await api.get('/api/translations/glossary');
+      setGlossaryTerms(res.data?.terms || []);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setLoadingGlossary(false);
+    }
+  };
+
+  const handleAddGlossaryTerm = async (glossaryCountry, findText, replaceText) => {
+    setError(null);
+    try {
+      const res = await api.post('/api/translations/glossary', { country: glossaryCountry, findText, replaceText });
+      setGlossaryTerms((prev) => [res.data.term, ...prev.filter((t) => t.id !== res.data.term.id)]);
+      setSuccessMsg(t('translations.glossarySaved'));
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    }
+  };
+
+  const handleUpdateGlossaryTerm = async (id, replaceText) => {
+    setError(null);
+    try {
+      const res = await api.put(`/api/translations/glossary/${id}`, { replaceText });
+      setGlossaryTerms((prev) => prev.map((t) => (t.id === id ? res.data.term : t)));
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    }
+  };
+
+  const handleDeleteGlossaryTerm = async (id) => {
+    setError(null);
+    try {
+      await api.delete(`/api/translations/glossary/${id}`);
+      setGlossaryTerms((prev) => prev.filter((t) => t.id !== id));
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    }
+  };
+
   return (
     <Box display="flex" flexDirection="column" gap="4">
       <Title as="h2">{t('translations.title')}</Title>
@@ -477,6 +524,32 @@ export default function Settings() {
             </Box>
             {rules.length === 0 && (
               <Text fontSize="caption" color="neutral-textLow">{t('translations.editModeNoRules')}</Text>
+            )}
+          </Box>
+        </Card.Body>
+      </Card>
+
+      <Card>
+        <Card.Header>
+          <Title as="h3">{t('translations.glossaryTitle')}</Title>
+        </Card.Header>
+        <Card.Body>
+          <Box display="flex" flexDirection="column" gap="3">
+            <Text color="neutral-textLow">{t('translations.glossaryDescription')}</Text>
+
+            {loadingGlossary || loadingConfig || loadingOptions ? (
+              <Spinner />
+            ) : (
+              <CountryGlossary
+                terms={glossaryTerms}
+                countries={rules.map((r) => ({
+                  code: r.country,
+                  name: options.countries.find((c) => c.code === r.country)?.label || r.country,
+                }))}
+                onAdd={handleAddGlossaryTerm}
+                onUpdate={handleUpdateGlossaryTerm}
+                onDelete={handleDeleteGlossaryTerm}
+              />
             )}
           </Box>
         </Card.Body>

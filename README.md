@@ -126,7 +126,7 @@ Interlingue, Bablic, GTranslate) — ordem de prioridade:
 
 1. ✅ Implementado — URLs indexaveis por idioma + tags `hreflang`
 2. Traducao do checkout (reconfirmar viabilidade — ver limitacao NubeSDK acima)
-3. Adaptacao por dialeto/tom por pais, nao so idioma (ex.: es-AR vs es-MX vs es-ES)
+3. ✅ Implementado — Adaptacao por dialeto/tom por pais (glossario de termos)
 4. Arredondamento de preco convertido (preco psicologico, ex. R$19,90)
 5. Exportar/importar traducoes em CSV
 6. Multiplos motores de traducao / ajuste de tom de marca (hoje so DeepL)

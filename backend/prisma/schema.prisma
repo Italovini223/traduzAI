@@ -33,6 +33,7 @@ model Store {
   orderRecords      OrderRecord[]
   translationOverrides StoreTranslationOverride[]
   bannerOverrides   StoreBannerOverride[]
+  countryGlossaryTerms StoreCountryGlossaryTerm[]
   @@map("stores")
 }
 
@@ -281,6 +282,28 @@ model StoreLocaleRule {
   updatedAt DateTime @updatedAt
   @@unique([storeId, country])
   @@map("store_locale_rules")
+}
+
+// Adaptação de dialeto/tom por PAÍS (não por idioma) — DeepL só tem um
+// "ES" genérico, não distingue espanhol da Argentina/México/Espanha. Termo
+// encontrado dentro de QUALQUER texto já traduzido pra esse país é
+// substituído (ex.: "ustedes" -> "vos" pra AR) — diferente de
+// StoreTranslationOverride, que corrige uma string EXATA inteira; aqui é
+// find/replace de termo dentro de qualquer texto, aplicado em cima da
+// tradução base (DeepL/cache/override), por isso a chave é o PAÍS, não o
+// targetLang (AR e MX podem ter o mesmo targetLang "es" mas glossários
+// diferentes).
+model StoreCountryGlossaryTerm {
+  id          Int      @id @default(autoincrement())
+  storeId     Int
+  store       Store    @relation(fields: [storeId], references: [id])
+  country     String   // ISO 3166-1 alpha-2, ex: "AR"
+  findText    String   // termo a substituir na tradução (case-insensitive, borda de palavra)
+  replaceText String   // termo substituto
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@unique([storeId, country, findText])
+  @@map("store_country_glossary_terms")
 }
 
 // Correção manual do lojista pra um texto traduzido específico — checada
