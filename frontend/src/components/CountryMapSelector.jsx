@@ -25,7 +25,6 @@ export default function CountryMapSelector({
   const { t } = useTranslation();
 
   const [selectedCode, setSelectedCode] = useState(null);
-  const [hoveredName, setHoveredName] = useState(null);
   const [panelEnabled, setPanelEnabled] = useState(false);
   const [panelLanguage, setPanelLanguage] = useState('');
   const [panelCurrency, setPanelCurrency] = useState('');
@@ -80,10 +79,25 @@ export default function CountryMapSelector({
   };
 
   return (
-    <Box display="flex" gap="4" flexWrap="wrap">
-      <Box display="flex" flexDirection="column" gap="2" flex="1" minWidth="320px">
+    <Box display="flex" flexDirection="column" gap="4">
+      <Box display="flex" flexDirection="column" gap="2">
+        <Box display="flex" gap="4" flexWrap="wrap" alignItems="center">
+          <Box display="flex" gap="2" alignItems="center">
+            <Box style={{ width: 16, height: 16, borderRadius: 3, backgroundColor: COLOR_ENABLED, border: '1px solid rgba(0,0,0,0.15)' }} />
+            <Text fontSize="caption">{t('translations.mapLegendEnabled')}</Text>
+          </Box>
+          <Box display="flex" gap="2" alignItems="center">
+            <Box style={{ width: 16, height: 16, borderRadius: 3, backgroundColor: COLOR_AVAILABLE, border: '1px solid rgba(0,0,0,0.15)' }} />
+            <Text fontSize="caption">{t('translations.mapLegendAvailable')}</Text>
+          </Box>
+          <Box display="flex" gap="2" alignItems="center">
+            <Box style={{ width: 16, height: 16, borderRadius: 3, backgroundColor: COLOR_UNSUPPORTED, border: '1px solid rgba(0,0,0,0.15)' }} />
+            <Text fontSize="caption">{t('translations.mapLegendUnsupported')}</Text>
+          </Box>
+        </Box>
+
         <Box style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
-          <ComposableMap projectionConfig={{ scale: 140 }} width={800} height={420} style={{ width: '100%', height: 'auto' }}>
+          <ComposableMap projectionConfig={{ scale: 160 }} width={800} height={440} style={{ width: '100%', height: 'auto', display: 'block' }}>
             <Geographies geography={worldTopo}>
               {({ geographies }) =>
                 geographies.map((geo) => {
@@ -91,13 +105,12 @@ export default function CountryMapSelector({
                   const isSupported = alpha2 && supportedByCode.has(alpha2);
                   const { normal, hover } = fillFor(alpha2);
                   const isSelected = alpha2 && alpha2 === selectedCode;
+                  const label = isSupported ? supportedByCode.get(alpha2)?.label || geo.properties.name : geo.properties.name;
                   return (
                     <Geography
                       key={geo.rsmKey}
                       geography={geo}
                       onClick={() => isSupported && openCountry(alpha2)}
-                      onMouseEnter={() => setHoveredName(alpha2 ? supportedByCode.get(alpha2)?.label || geo.properties.name : geo.properties.name)}
-                      onMouseLeave={() => setHoveredName(null)}
                       style={{
                         default: {
                           fill: normal,
@@ -118,42 +131,21 @@ export default function CountryMapSelector({
                           outline: 'none',
                         },
                       }}
-                    />
+                    >
+                      <title>{label}</title>
+                    </Geography>
                   );
                 })
               }
             </Geographies>
           </ComposableMap>
         </Box>
-
-        <Box display="flex" gap="4" flexWrap="wrap" alignItems="center">
-          <Box display="flex" gap="1" alignItems="center">
-            <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: COLOR_ENABLED }} />
-            <Text fontSize="caption">{t('translations.mapLegendEnabled')}</Text>
-          </Box>
-          <Box display="flex" gap="1" alignItems="center">
-            <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: COLOR_AVAILABLE }} />
-            <Text fontSize="caption">{t('translations.mapLegendAvailable')}</Text>
-          </Box>
-          <Box display="flex" gap="1" alignItems="center">
-            <Box style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: COLOR_UNSUPPORTED }} />
-            <Text fontSize="caption">{t('translations.mapLegendUnsupported')}</Text>
-          </Box>
-        </Box>
-
-        {hoveredName && (
-          <Text fontSize="caption" color="neutral-textLow">
-            {hoveredName}
-          </Text>
-        )}
       </Box>
 
       <Box
         display="flex"
         flexDirection="column"
         gap="3"
-        minWidth="280px"
-        flex="1"
         style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px' }}
       >
         {!selectedCode ? (
