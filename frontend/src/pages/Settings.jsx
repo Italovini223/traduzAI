@@ -523,32 +523,35 @@ export default function Settings() {
 
                   <Box display="flex" flexDirection="column" gap="1">
                     <Text fontSize="caption" color="neutral-textLow">{t('translations.previewTitle')}</Text>
-                    <Box
-                      position="relative"
-                      width="100%"
-                      maxWidth="320px"
-                      height="160px"
-                      backgroundColor="neutral-surface"
-                      borderWidth="1px"
-                      borderStyle="solid"
-                      borderColor="neutral-surfaceHighlight"
-                      borderRadius="8px"
-                      overflow="hidden"
+                    <div
+                      style={{
+                        position: 'relative',
+                        width: '100%',
+                        maxWidth: '320px',
+                        height: '160px',
+                        backgroundColor: '#f4f5f7',
+                        border: '1px solid #ddd',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                      }}
                     >
-                      <Box
-                        position="absolute"
-                        {...PICKER_PREVIEW_POSITION[config.pickerPosition]}
-                        display="flex"
-                        alignItems="center"
-                        justifyContent="center"
-                        width="40px"
-                        height="40px"
-                        borderRadius="50%"
-                        style={{ backgroundColor: config.pickerColor, boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          ...PICKER_PREVIEW_POSITION[config.pickerPosition],
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '50%',
+                          backgroundColor: config.pickerColor,
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+                        }}
                       >
                         <span style={{ color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>{t('translations.previewButtonLabel')}</span>
-                      </Box>
-                    </Box>
+                      </div>
+                    </div>
                   </Box>
                 </Box>
               </Card.Body>
