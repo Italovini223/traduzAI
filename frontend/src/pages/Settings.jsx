@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Card, Button, Text, Title, Alert, Spinner, Select, Toggle, Tabs } from '@nimbus-ds/components';
+import { Box, Card, Button, Text, Title, Alert, Select, Toggle, Tabs, Tag, Skeleton } from '@nimbus-ds/components';
 import api from '../services/api.js';
 import CountryMapSelector from '../components/CountryMapSelector.jsx';
 import TranslationOverrides from '../components/TranslationOverrides.jsx';
 import BannerOverrides from '../components/BannerOverrides.jsx';
 import CountryGlossary from '../components/CountryGlossary.jsx';
+
+const PICKER_PREVIEW_POSITION = {
+  'bottom-left': { bottom: '10px', left: '10px' },
+  'bottom-right': { bottom: '10px', right: '10px' },
+  'top-left': { top: '10px', left: '10px' },
+  'top-right': { top: '10px', right: '10px' },
+};
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -21,6 +28,7 @@ export default function Settings() {
     pickerPosition: 'bottom-left',
     pickerColor: '#1a73e8',
   });
+  const [savedConfig, setSavedConfig] = useState(config);
   const [rules, setRules] = useState([]);
   const [overrides, setOverrides] = useState([]);
   const [bannerOverrides, setBannerOverrides] = useState([]);
@@ -79,14 +87,16 @@ export default function Settings() {
     setLoadingConfig(true);
     try {
       const res = await api.get('/api/translations/config');
-      setConfig(res.data?.config || {
+      const loadedConfig = res.data?.config || {
         enabled: false,
         sourceLanguage: 'pt-BR',
         baseCurrency: 'BRL',
         translateImages: false,
         pickerPosition: 'bottom-left',
         pickerColor: '#1a73e8',
-      });
+      };
+      setConfig(loadedConfig);
+      setSavedConfig(loadedConfig);
       setRules(res.data?.rules || []);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -101,6 +111,7 @@ export default function Settings() {
     try {
       const res = await api.put('/api/translations/config', { enabled: !config.enabled });
       setConfig(res.data.config);
+      setSavedConfig(res.data.config);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
     } finally {
@@ -114,6 +125,7 @@ export default function Settings() {
     try {
       const res = await api.put('/api/translations/config', { translateImages: !config.translateImages });
       setConfig(res.data.config);
+      setSavedConfig(res.data.config);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
     } finally {
@@ -130,6 +142,7 @@ export default function Settings() {
         baseCurrency: config.baseCurrency,
       });
       setConfig(res.data.config);
+      setSavedConfig(res.data.config);
       setSuccessMsg(t('translations.savedSource'));
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -168,6 +181,7 @@ export default function Settings() {
         pickerColor: config.pickerColor,
       });
       setConfig(res.data.config);
+      setSavedConfig(res.data.config);
       setSuccessMsg(t('translations.appearanceSaved'));
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -325,6 +339,21 @@ export default function Settings() {
     }
   };
 
+  const initialLoading = loadingOptions || loadingConfig || loadingOverrides || loadingBannerOverrides || loadingGlossary;
+  const isSourceDirty = config.sourceLanguage !== savedConfig.sourceLanguage || config.baseCurrency !== savedConfig.baseCurrency;
+  const isAppearanceDirty = config.pickerPosition !== savedConfig.pickerPosition || config.pickerColor !== savedConfig.pickerColor;
+
+  if (initialLoading) {
+    return (
+      <Box display="flex" flexDirection="column" gap="4" maxWidth="880px" marginX="auto" width="100%">
+        <Skeleton width="240px" height="32px" borderRadius="4px" />
+        <Skeleton width="100%" height="96px" borderRadius="8px" />
+        <Skeleton width="100%" height="40px" borderRadius="8px" />
+        <Skeleton width="100%" height="220px" borderRadius="8px" />
+      </Box>
+    );
+  }
+
   return (
     <Box display="flex" flexDirection="column" gap="4" maxWidth="880px" marginX="auto" width="100%">
       <Title as="h2">{t('translations.title')}</Title>
@@ -345,32 +374,28 @@ export default function Settings() {
           <Title as="h3">{t('translations.enableTitle')}</Title>
         </Card.Header>
         <Card.Body>
-          {loadingConfig ? (
-            <Spinner />
-          ) : (
-            <Box display="flex" flexDirection="column" gap="3">
-              <Toggle
-                name="translation-enabled"
-                label={config.enabled ? t('translations.enabledOn') : t('translations.enabledOff')}
-                active={config.enabled}
-                checked={config.enabled}
-                disabled={savingToggle}
-                onChange={handleToggleEnabled}
-              />
+          <Box display="flex" flexDirection="column" gap="3">
+            <Toggle
+              name="translation-enabled"
+              label={config.enabled ? t('translations.enabledOn') : t('translations.enabledOff')}
+              active={config.enabled}
+              checked={config.enabled}
+              disabled={savingToggle}
+              onChange={handleToggleEnabled}
+            />
 
-              <Box display="flex" flexDirection="column" gap="1">
-                <Toggle
-                  name="translate-images"
-                  label={config.translateImages ? t('translations.imagesOn') : t('translations.imagesOff')}
-                  active={config.translateImages}
-                  checked={config.translateImages}
-                  disabled={savingImages}
-                  onChange={handleToggleImages}
-                />
-                <Text fontSize="caption" color="neutral-textLow">{t('translations.imagesHint')}</Text>
-              </Box>
+            <Box display="flex" flexDirection="column" gap="1">
+              <Toggle
+                name="translate-images"
+                label={config.translateImages ? t('translations.imagesOn') : t('translations.imagesOff')}
+                active={config.translateImages}
+                checked={config.translateImages}
+                disabled={savingImages}
+                onChange={handleToggleImages}
+              />
+              <Text fontSize="caption" color="neutral-textLow">{t('translations.imagesHint')}</Text>
             </Box>
-          )}
+          </Box>
         </Card.Body>
       </Card>
 
@@ -390,7 +415,6 @@ export default function Settings() {
                       <Select
                         name="sourceLanguage"
                         value={config.sourceLanguage}
-                        disabled={loadingOptions}
                         onChange={(e) => setConfig((prev) => ({ ...prev, sourceLanguage: e.target.value }))}
                       >
                         {options.languages.map((lang) => (
@@ -405,7 +429,6 @@ export default function Settings() {
                       <Select
                         name="baseCurrency"
                         value={config.baseCurrency}
-                        disabled={loadingOptions}
                         onChange={(e) => setConfig((prev) => ({ ...prev, baseCurrency: e.target.value }))}
                       >
                         {options.currencies.map((cur) => (
@@ -415,10 +438,11 @@ export default function Settings() {
                         ))}
                       </Select>
                     </Box>
-                    <Box display="flex" alignItems="flex-end">
+                    <Box display="flex" alignItems="flex-end" gap="2">
                       <Button appearance="primary" onClick={handleSaveSource} disabled={savingSource}>
                         {savingSource ? t('common.loading') : t('common.save')}
                       </Button>
+                      {isSourceDirty && <Tag appearance="warning">{t('common.unsavedChanges')}</Tag>}
                     </Box>
                   </Box>
                 </Box>
@@ -437,20 +461,16 @@ export default function Settings() {
                 <Box display="flex" flexDirection="column" gap="3">
                   <Text color="neutral-textLow">{t('translations.rulesDescription')}</Text>
 
-                  {loadingConfig || loadingOptions ? (
-                    <Spinner />
-                  ) : (
-                    <CountryMapSelector
-                      countries={options.countries}
-                      languages={options.languages}
-                      currencies={options.currencies}
-                      rules={rules}
-                      defaults={options.defaults}
-                      onAddRule={handleAddRule}
-                      onUpdateRule={handleUpdateRule}
-                      onDeleteRule={handleDeleteRule}
-                    />
-                  )}
+                  <CountryMapSelector
+                    countries={options.countries}
+                    languages={options.languages}
+                    currencies={options.currencies}
+                    rules={rules}
+                    defaults={options.defaults}
+                    onAddRule={handleAddRule}
+                    onUpdateRule={handleUpdateRule}
+                    onDeleteRule={handleDeleteRule}
+                  />
                 </Box>
               </Card.Body>
             </Card>
@@ -493,10 +513,41 @@ export default function Settings() {
                         style={{ width: '48px', height: '36px', padding: 0, border: '1px solid #ddd', borderRadius: '4px' }}
                       />
                     </Box>
-                    <Box display="flex" alignItems="flex-end">
+                    <Box display="flex" alignItems="flex-end" gap="2">
                       <Button appearance="primary" onClick={handleSaveAppearance} disabled={savingAppearance}>
                         {savingAppearance ? t('common.loading') : t('common.save')}
                       </Button>
+                      {isAppearanceDirty && <Tag appearance="warning">{t('common.unsavedChanges')}</Tag>}
+                    </Box>
+                  </Box>
+
+                  <Box display="flex" flexDirection="column" gap="1">
+                    <Text fontSize="caption" color="neutral-textLow">{t('translations.previewTitle')}</Text>
+                    <Box
+                      position="relative"
+                      width="100%"
+                      maxWidth="320px"
+                      height="160px"
+                      backgroundColor="neutral-surface"
+                      borderWidth="1px"
+                      borderStyle="solid"
+                      borderColor="neutral-surfaceHighlight"
+                      borderRadius="8px"
+                      overflow="hidden"
+                    >
+                      <Box
+                        position="absolute"
+                        {...PICKER_PREVIEW_POSITION[config.pickerPosition]}
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        width="40px"
+                        height="40px"
+                        borderRadius="50%"
+                        style={{ backgroundColor: config.pickerColor, boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}
+                      >
+                        <span style={{ color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>{t('translations.previewButtonLabel')}</span>
+                      </Box>
                     </Box>
                   </Box>
                 </Box>
@@ -543,49 +594,47 @@ export default function Settings() {
 
             <Card>
               <Card.Header>
-                <Title as="h3">{t('translations.glossaryTitle')}</Title>
+                <Box display="flex" alignItems="center" gap="2">
+                  <Title as="h3">{t('translations.glossaryTitle')}</Title>
+                  <Tag appearance="primary">{t('translations.glossaryBadge')}</Tag>
+                </Box>
               </Card.Header>
               <Card.Body>
                 <Box display="flex" flexDirection="column" gap="3">
                   <Text color="neutral-textLow">{t('translations.glossaryDescription')}</Text>
 
-                  {loadingGlossary || loadingConfig || loadingOptions ? (
-                    <Spinner />
-                  ) : (
-                    <CountryGlossary
-                      terms={glossaryTerms}
-                      countries={rules.map((r) => ({
-                        code: r.country,
-                        name: options.countries.find((c) => c.code === r.country)?.label || r.country,
-                      }))}
-                      onAdd={handleAddGlossaryTerm}
-                      onUpdate={handleUpdateGlossaryTerm}
-                      onDelete={handleDeleteGlossaryTerm}
-                    />
-                  )}
+                  <CountryGlossary
+                    terms={glossaryTerms}
+                    countries={rules.map((r) => ({
+                      code: r.country,
+                      name: options.countries.find((c) => c.code === r.country)?.label || r.country,
+                    }))}
+                    onAdd={handleAddGlossaryTerm}
+                    onUpdate={handleUpdateGlossaryTerm}
+                    onDelete={handleDeleteGlossaryTerm}
+                  />
                 </Box>
               </Card.Body>
             </Card>
 
             <Card>
               <Card.Header>
-                <Title as="h3">{t('translations.overridesTitle')}</Title>
+                <Box display="flex" alignItems="center" gap="2">
+                  <Title as="h3">{t('translations.overridesTitle')}</Title>
+                  <Tag appearance="neutral">{t('translations.overridesBadge')}</Tag>
+                </Box>
               </Card.Header>
               <Card.Body>
                 <Box display="flex" flexDirection="column" gap="3">
                   <Text color="neutral-textLow">{t('translations.overridesDescription')}</Text>
 
-                  {loadingOverrides || loadingOptions ? (
-                    <Spinner />
-                  ) : (
-                    <TranslationOverrides
-                      overrides={overrides}
-                      languages={options.languages}
-                      onAdd={handleAddOverride}
-                      onUpdate={handleUpdateOverride}
-                      onDelete={handleDeleteOverride}
-                    />
-                  )}
+                  <TranslationOverrides
+                    overrides={overrides}
+                    languages={options.languages}
+                    onAdd={handleAddOverride}
+                    onUpdate={handleUpdateOverride}
+                    onDelete={handleDeleteOverride}
+                  />
                 </Box>
               </Card.Body>
             </Card>
@@ -602,17 +651,13 @@ export default function Settings() {
                 <Box display="flex" flexDirection="column" gap="3">
                   <Text color="neutral-textLow">{t('translations.bannerOverridesDescription')}</Text>
 
-                  {loadingBannerOverrides || loadingOptions ? (
-                    <Spinner />
-                  ) : (
-                    <BannerOverrides
-                      overrides={bannerOverrides}
-                      languages={options.languages}
-                      onDetect={handleDetectBanners}
-                      onAdd={handleAddBannerOverride}
-                      onDelete={handleDeleteBannerOverride}
-                    />
-                  )}
+                  <BannerOverrides
+                    overrides={bannerOverrides}
+                    languages={options.languages}
+                    onDetect={handleDetectBanners}
+                    onAdd={handleAddBannerOverride}
+                    onDelete={handleDeleteBannerOverride}
+                  />
                 </Box>
               </Card.Body>
             </Card>

@@ -291,8 +291,12 @@
     "mapEnabledTag": "Habilitado",
     "mapEnableOn": "Traducci\u00f3n y conversi\u00f3n habilitadas en este pa\u00eds",
     "mapEnableOff": "Traducci\u00f3n y conversi\u00f3n deshabilitadas en este pa\u00eds",
-    "overridesTitle": "Correcciones manuales de traducci\u00f3n (una frase espec\u00edfica)",
-    "glossaryTitle": "Adaptaci\u00f3n por pa\u00eds (una palabra en cualquier frase)",
+    "overridesTitle": "Correcciones manuales de traducci\u00f3n",
+    "overridesBadge": "Frase exacta \u2022 por idioma",
+    "glossaryTitle": "Adaptaci\u00f3n por pa\u00eds",
+    "glossaryBadge": "Palabra \u2022 por pa\u00eds",
+    "previewTitle": "Vista previa",
+    "previewButtonLabel": "AR",
     "glossaryDescription": "Diferente de la correcci\u00f3n manual de abajo: ac\u00e1 cambi\u00e1s una PALABRA o t\u00e9rmino, y el cambio aplica en CUALQUIER frase traducida \u2014 no solo en una frase espec\u00edfica. Y funciona por PA\u00cdS, no por idioma: pod\u00e9s tener un t\u00e9rmino distinto para Argentina y otro para M\u00e9xico, aunque los dos usen espa\u00f1ol. Usalo para ajustar el tono/dialecto (formal vs. informal) sin corregir frase por frase. Ej: en cualquier texto traducido para Argentina, cambi\u00e1 \"ustedes\" por \"vos\".",
     "glossaryCountry": "Pa\u00eds",
     "glossaryFindText": "T\u00e9rmino a reemplazar (en la traducci\u00f3n)",
@@ -354,6 +358,7 @@
     "success": "\u00a1\u00c9xito!",
     "noData": "No se encontraron datos.",
     "close": "Cerrar",
-    "edit": "Editar"
+    "edit": "Editar",
+    "unsavedChanges": "Cambios sin guardar"
   }
 }

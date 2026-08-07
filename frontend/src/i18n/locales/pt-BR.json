@@ -295,8 +295,12 @@
     "mapEnabledTag": "Habilitado",
     "mapEnableOn": "Tradução e conversão habilitadas neste país",
     "mapEnableOff": "Tradução e conversão desabilitadas neste país",
-    "overridesTitle": "Correções manuais de tradução (uma frase específica)",
-    "glossaryTitle": "Adaptação por país (uma palavra em qualquer frase)",
+    "overridesTitle": "Correções manuais de tradução",
+    "overridesBadge": "Frase exata • por idioma",
+    "glossaryTitle": "Adaptação por país",
+    "glossaryBadge": "Palavra • por país",
+    "previewTitle": "Pré-visualização",
+    "previewButtonLabel": "BR",
     "glossaryDescription": "Diferente da correção manual abaixo: aqui você troca uma PALAVRA ou termo, e a troca vale em QUALQUER frase traduzida — não só em uma frase específica. E funciona por PAÍS, não por idioma: dá pra ter um termo diferente pra Argentina e outro pra México, mesmo os dois usando espanhol. Use isso pra ajustar tom/dialeto (formal vs. informal) sem precisar corrigir frase por frase. Ex: em qualquer texto traduzido pra Argentina, troque \"ustedes\" por \"vos\".",
     "glossaryCountry": "País",
     "glossaryFindText": "Termo a substituir (na tradução)",
@@ -358,6 +362,7 @@
     "success": "Sucesso!",
     "noData": "Nenhum dado encontrado.",
     "close": "Fechar",
-    "edit": "Editar"
+    "edit": "Editar",
+    "unsavedChanges": "Alterações não salvas"
   }
 }
