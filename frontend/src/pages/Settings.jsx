@@ -12,7 +12,14 @@ export default function Settings() {
   const [options, setOptions] = useState({ countries: [], languages: [], currencies: [], defaults: {} });
   const [loadingOptions, setLoadingOptions] = useState(true);
 
-  const [config, setConfig] = useState({ enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL', translateImages: false });
+  const [config, setConfig] = useState({
+    enabled: false,
+    sourceLanguage: 'pt-BR',
+    baseCurrency: 'BRL',
+    translateImages: false,
+    pickerPosition: 'bottom-left',
+    pickerColor: '#1a73e8',
+  });
   const [rules, setRules] = useState([]);
   const [overrides, setOverrides] = useState([]);
   const [bannerOverrides, setBannerOverrides] = useState([]);
@@ -22,6 +29,9 @@ export default function Settings() {
   const [savingToggle, setSavingToggle] = useState(false);
   const [savingSource, setSavingSource] = useState(false);
   const [savingImages, setSavingImages] = useState(false);
+  const [savingAppearance, setSavingAppearance] = useState(false);
+  const [editModeCountry, setEditModeCountry] = useState('');
+  const [openingEditMode, setOpeningEditMode] = useState(false);
 
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -38,6 +48,10 @@ export default function Settings() {
     const timer = setTimeout(() => setSuccessMsg(null), 2500);
     return () => clearTimeout(timer);
   }, [successMsg]);
+
+  useEffect(() => {
+    if (!editModeCountry && rules.length > 0) setEditModeCountry(rules[0].country);
+  }, [rules, editModeCountry]);
 
   const loadOptions = async () => {
     setLoadingOptions(true);
@@ -60,7 +74,14 @@ export default function Settings() {
     setLoadingConfig(true);
     try {
       const res = await api.get('/api/translations/config');
-      setConfig(res.data?.config || { enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL', translateImages: false });
+      setConfig(res.data?.config || {
+        enabled: false,
+        sourceLanguage: 'pt-BR',
+        baseCurrency: 'BRL',
+        translateImages: false,
+        pickerPosition: 'bottom-left',
+        pickerColor: '#1a73e8',
+      });
       setRules(res.data?.rules || []);
     } catch (err) {
       setError(err.response?.data?.error || err.message);
@@ -130,6 +151,38 @@ export default function Settings() {
       setRules((prev) => prev.map((r) => (r.id === id ? res.data.rule : r)));
     } catch (err) {
       setError(err.response?.data?.error || err.message);
+    }
+  };
+
+  const handleSaveAppearance = async () => {
+    setSavingAppearance(true);
+    setError(null);
+    try {
+      const res = await api.put('/api/translations/config', {
+        pickerPosition: config.pickerPosition,
+        pickerColor: config.pickerColor,
+      });
+      setConfig(res.data.config);
+      setSuccessMsg(t('translations.appearanceSaved'));
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setSavingAppearance(false);
+    }
+  };
+
+  const handleOpenEditMode = async () => {
+    setOpeningEditMode(true);
+    setError(null);
+    try {
+      const res = await api.post('/api/translations/edit-session');
+      const country = editModeCountry || rules[0]?.country;
+      const url = country ? `${res.data.editUrl}&country=${encodeURIComponent(country)}` : res.data.editUrl;
+      window.open(url, '_blank');
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setOpeningEditMode(false);
     }
   };
 
@@ -342,6 +395,88 @@ export default function Settings() {
                 onUpdateRule={handleUpdateRule}
                 onDeleteRule={handleDeleteRule}
               />
+            )}
+          </Box>
+        </Card.Body>
+      </Card>
+
+      <Card>
+        <Card.Header>
+          <Title as="h3">{t('translations.appearanceTitle')}</Title>
+        </Card.Header>
+        <Card.Body>
+          <Box display="flex" flexDirection="column" gap="3">
+            <Text color="neutral-textLow">{t('translations.appearanceDescription')}</Text>
+            <Box display="flex" gap="3" flexWrap="wrap">
+              <Box display="flex" flexDirection="column" gap="1" minWidth="200px">
+                <Text>{t('translations.pickerPosition')}</Text>
+                <Select
+                  name="pickerPosition"
+                  value={config.pickerPosition}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, pickerPosition: e.target.value }))}
+                >
+                  <Select.Option value="bottom-left" label={t('translations.positionBottomLeft')}>
+                    {t('translations.positionBottomLeft')}
+                  </Select.Option>
+                  <Select.Option value="bottom-right" label={t('translations.positionBottomRight')}>
+                    {t('translations.positionBottomRight')}
+                  </Select.Option>
+                  <Select.Option value="top-left" label={t('translations.positionTopLeft')}>
+                    {t('translations.positionTopLeft')}
+                  </Select.Option>
+                  <Select.Option value="top-right" label={t('translations.positionTopRight')}>
+                    {t('translations.positionTopRight')}
+                  </Select.Option>
+                </Select>
+              </Box>
+              <Box display="flex" flexDirection="column" gap="1">
+                <Text>{t('translations.pickerColor')}</Text>
+                <input
+                  type="color"
+                  value={config.pickerColor}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, pickerColor: e.target.value }))}
+                  style={{ width: '48px', height: '36px', padding: 0, border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+              </Box>
+              <Box display="flex" alignItems="flex-end">
+                <Button appearance="primary" onClick={handleSaveAppearance} disabled={savingAppearance}>
+                  {savingAppearance ? t('common.loading') : t('common.save')}
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        </Card.Body>
+      </Card>
+
+      <Card>
+        <Card.Header>
+          <Title as="h3">{t('translations.editModeTitle')}</Title>
+        </Card.Header>
+        <Card.Body>
+          <Box display="flex" flexDirection="column" gap="3">
+            <Text color="neutral-textLow">{t('translations.editModeDescription')}</Text>
+            <Box display="flex" gap="3" flexWrap="wrap" alignItems="flex-end">
+              <Box display="flex" flexDirection="column" gap="1" minWidth="180px">
+                <Text>{t('translations.editModeCountry')}</Text>
+                <Select
+                  name="editModeCountry"
+                  value={editModeCountry}
+                  disabled={rules.length === 0}
+                  onChange={(e) => setEditModeCountry(e.target.value)}
+                >
+                  {rules.map((r) => (
+                    <Select.Option key={r.country} value={r.country} label={r.country}>
+                      {r.country}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Box>
+              <Button appearance="neutral" onClick={handleOpenEditMode} disabled={openingEditMode || rules.length === 0}>
+                {openingEditMode ? t('common.loading') : t('translations.openEditMode')}
+              </Button>
+            </Box>
+            {rules.length === 0 && (
+              <Text fontSize="caption" color="neutral-textLow">{t('translations.editModeNoRules')}</Text>
             )}
           </Box>
         </Card.Body>

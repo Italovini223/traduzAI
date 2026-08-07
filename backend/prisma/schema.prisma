@@ -262,6 +262,8 @@ model StoreTranslationConfig {
   sourceLanguage String   @default("pt") // idioma original do conteúdo da loja
   baseCurrency   String   @default("BRL") // moeda original dos preços
   translateImages Boolean @default(false) // opt-in — chama Google Vision (custo externo)
+  pickerPosition String   @default("bottom-left") // posição do seletor de bandeiras na vitrine
+  pickerColor    String   @default("#1a73e8") // cor de destaque do seletor de bandeiras
   scriptId       String?  // id retornado pela Nuvemshop Script API
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

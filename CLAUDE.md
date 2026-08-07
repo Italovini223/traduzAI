@@ -1040,11 +1040,15 @@ imagem (`img[alt]` já está no `ATTR_SELECTOR` de `widget.js`) e
 re-tradução de conteúdo dinâmico/AJAX (o `MutationObserver` de
 `ensureObserver()` já cobre isso).
 
-1. **URLs indexáveis por idioma + tags `hreflang`** — hoje traduzimos via
-   JS na MESMA URL; o Google não indexa a versão em outro idioma como
-   página separada. Maior gap real de SEO internacional. Pelo menos
-   adicionar `hreflang` sem reestruturar URL já ajudaria, mesmo sem ir até
-   o fim (subpasta/subdomínio por idioma).
+1. ✅ **Implementado (2026-08-06)** — `injectHreflangTags()` em
+   `widget.js`, chamado em `init()` com os dados de `/storefront/rules`.
+   Injeta `<link rel="alternate" hreflang="...">` no `<head>` pra
+   `x-default`, o idioma nativo (home) e cada país configurado, cada um
+   apontando pra `?country=XX` (que já é funcional standalone — requisito
+   mínimo do hreflang). **Limitação aceita e documentada no próprio
+   comentário do código**: é injeção client-side (JS), não SSR por URL —
+   não é o ideal (ver texto original do gap abaixo), depende do Googlebot
+   executar o JS pra indexar direito, o que não é garantido.
 2. **Tradução do checkout** — reconfirmar viabilidade antes de tentar de
    novo: já documentado que o checkout usa NubeSDK (Web Worker, sem acesso
    a DOM), o que provavelmente inviabiliza isso com a arquitetura atual
@@ -1068,12 +1072,55 @@ re-tradução de conteúdo dinâmico/AJAX (o `MutationObserver` de
    string-a-string do `StoreTranslationOverride` atual: regra por
    padrão/palavra-chave (ex.: "nunca traduzir SKU", "sempre manter 'Nossa
    Marca' no original em qualquer lugar que apareça").
-8. **Editor visual in-context** — clicar no elemento na própria vitrine
-   pra corrigir a tradução, em vez de digitar o texto original manualmente
-   no admin (UX melhor pra `StoreTranslationOverride`).
-9. **Personalização visual do seletor de bandeiras** — hoje é
-   posição/estilo fixo (`buildCountryPicker` em `widget.js`); concorrentes
-   deixam o lojista reposicionar/re-estilizar pra bater com a marca.
+8. ✅ **Implementado (2026-08-06)** — "Modo de edição" in-context. Admin
+   → `POST /api/translations/edit-session` emite um JWT curto (30min,
+   `scope: 'translate-edit'`, assinado com `JWT_SECRET`) e devolve
+   `editUrl` (`https://{store.domain}/?traduzai_edit=TOKEN&country=XX`).
+   Lojista abre essa URL numa aba nova; `widget.js` detecta
+   `?traduzai_edit=` e, pra cada nó de texto traduzido, adiciona contorno
+   tracejado no hover + popup de edição no clique (`styleEditableTargets`/
+   `openEditPopup`). Salvar chama `POST /storefront/edit-override` (rota
+   PÚBLICA, mas só aceita com editToken válido — sem isso, sem
+   `requireAuth`, qualquer visitante poderia poluir a tradução da loja).
+   Reaproveita `upsertTranslationOverride` (`lib/translationOverrides.js`),
+   o MESMO helper da rota autenticada — grava na mesma tabela
+   `StoreTranslationOverride`, efeito idêntico ao editor manual do admin.
+   **Testado e confirmado em produção**: hover, clique, popup, salvar e
+   persistência num reload normal funcionam — validado com um override
+   pré-existente do próprio usuário (`"Vestido Carol"` → `"Carol's
+   Dress"`, criado horas antes do teste) que reapareceu corretamente após
+   reload. **Bug real encontrado e corrigido (2026-08-07)**: correções
+   pra "What's New" e pra um texto do tema (`"Pague em até 5x sem
+   juros"`) não reapareciam num reload normal, mesmo confirmadas corretas
+   no banco via chamada direta à API. Causa raiz: `POST
+   /storefront/translate` calculava `sourceHash` SEM `.trim()`, mas
+   `upsertTranslationOverride` (`lib/translationOverrides.js`, usado tanto
+   pela rota autenticada quanto por `POST /storefront/edit-override`)
+   TRIMA antes de calcular o hash. Nó de texto real do DOM quase sempre
+   vem com espaço/quebra de linha em volta por indentação do HTML do tema
+   (ex.: `"\n   Pague em até 5x sem juros\n   "`, 79 caracteres reais
+   contra 26 do texto "limpo") — os dois hashes nunca bateram pra
+   qualquer texto com esse padding, e a correção nunca era aplicada.
+   `"Vestido Carol"` (nome de produto) só funcionou por coincidência: o
+   template desse campo especificamente não tem espaço em volta. **Fix**:
+   `POST /storefront/translate` agora também trima antes de montar
+   `safeTexts`/calcular hash (`routes/storefront.js`) — consistente com o
+   lado da correção manual. Confirmado corrigido em produção: a correção
+   de `"Pague em até 5x sem juros"` passou a reaparecer normalmente após
+   o fix, num reload real (sem modo de edição). Efeito colateral
+   inofensivo: linhas antigas do `TranslationCache` com hash calculado
+   sem trim (texto com espaço em volta) ficam órfãs — sem problema,
+   apenas geram uma nova entrada (trimada) na próxima tradução desse
+   texto, sem exigir migração.
+9. ✅ **Implementado (2026-08-06)** — Personalização visual do seletor de
+   bandeiras. Novos campos `StoreTranslationConfig.pickerPosition`
+   (`bottom-left` padrão, `bottom-right`, `top-left`, `top-right`) e
+   `pickerColor` (hex, `#1a73e8` padrão) — editáveis em Settings.jsx,
+   devolvidos por `GET /storefront/rules` e consumidos por
+   `buildCountryPicker(..., appearance)` em `widget.js` (posição via CSS,
+   cor via `hexToRgba()` pro halo de destaque). Testado visualmente em
+   produção (posição `top-right` + cor laranja `#e67e22` aplicadas
+   corretamente na vitrine real).
 
 **Baixa prioridade pro nosso mercado** (LatAm, pt-BR/es/en): idioma RTL
 (não se aplica, sem idioma RTL no público-alvo), tradução de e-mail

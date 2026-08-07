@@ -1,9 +1,11 @@
 const express = require('express');
 const crypto = require('crypto');
 const axios = require('axios');
+const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
 const { AppError } = require('../lib/errors');
 const { requireAuth } = require('../middleware/auth');
+const { upsertTranslationOverride } = require('../lib/translationOverrides');
 const {
   SUPPORTED_COUNTRIES,
   SUPPORTED_LANGUAGES,
@@ -147,7 +149,14 @@ router.get('/config', async (req, res, next) => {
     ]);
 
     res.json({
-      config: config || { enabled: false, sourceLanguage: 'pt-BR', baseCurrency: 'BRL', translateImages: false },
+      config: config || {
+        enabled: false,
+        sourceLanguage: 'pt-BR',
+        baseCurrency: 'BRL',
+        translateImages: false,
+        pickerPosition: 'bottom-left',
+        pickerColor: '#1a73e8',
+      },
       rules,
     });
   } catch (err) {
@@ -158,9 +167,12 @@ router.get('/config', async (req, res, next) => {
 /**
  * PUT /api/translations/config — atualiza enabled/sourceLanguage/baseCurrency.
  */
+const VALID_PICKER_POSITIONS = new Set(['bottom-left', 'bottom-right', 'top-left', 'top-right']);
+const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
+
 router.put('/config', async (req, res, next) => {
   try {
-    const { enabled, sourceLanguage, baseCurrency, translateImages } = req.body;
+    const { enabled, sourceLanguage, baseCurrency, translateImages, pickerPosition, pickerColor } = req.body;
 
     if (sourceLanguage !== undefined && !isValidLanguage(sourceLanguage)) {
       throw new AppError('Idioma de origem invalido.', 400, 'INVALID_LANGUAGE');
@@ -168,12 +180,20 @@ router.put('/config', async (req, res, next) => {
     if (baseCurrency !== undefined && !isValidCurrency(baseCurrency)) {
       throw new AppError('Moeda de origem invalida.', 400, 'INVALID_CURRENCY');
     }
+    if (pickerPosition !== undefined && !VALID_PICKER_POSITIONS.has(pickerPosition)) {
+      throw new AppError('Posicao do seletor invalida.', 400, 'INVALID_PICKER_POSITION');
+    }
+    if (pickerColor !== undefined && !HEX_COLOR_REGEX.test(pickerColor)) {
+      throw new AppError('Cor do seletor invalida (use #rrggbb).', 400, 'INVALID_PICKER_COLOR');
+    }
 
     const data = {};
     if (enabled !== undefined) data.enabled = Boolean(enabled);
     if (sourceLanguage !== undefined) data.sourceLanguage = sourceLanguage;
     if (baseCurrency !== undefined) data.baseCurrency = baseCurrency;
     if (translateImages !== undefined) data.translateImages = Boolean(translateImages);
+    if (pickerPosition !== undefined) data.pickerPosition = pickerPosition;
+    if (pickerColor !== undefined) data.pickerColor = pickerColor;
 
     const config = await prisma.storeTranslationConfig.upsert({
       where: { storeId: req.store.id },
@@ -295,15 +315,7 @@ router.post('/overrides', async (req, res, next) => {
       throw new AppError('Idioma de destino invalido.', 400, 'INVALID_LANGUAGE');
     }
 
-    const safeSourceText = sourceText.trim().slice(0, MAX_OVERRIDE_TEXT_LENGTH);
-    const safeOverrideText = overrideText.trim().slice(0, MAX_OVERRIDE_TEXT_LENGTH);
-    const sourceHash = sha256(safeSourceText);
-
-    const override = await prisma.storeTranslationOverride.upsert({
-      where: { storeId_sourceHash_targetLang: { storeId: req.store.id, sourceHash, targetLang } },
-      update: { overrideText: safeOverrideText, sourceText: safeSourceText },
-      create: { storeId: req.store.id, sourceHash, sourceText: safeSourceText, targetLang, overrideText: safeOverrideText },
-    });
+    const override = await upsertTranslationOverride({ storeId: req.store.id, sourceText, targetLang, overrideText });
 
     res.status(201).json({ override });
   } catch (err) {
@@ -438,6 +450,35 @@ router.delete('/banner-overrides/:id', async (req, res, next) => {
 
     await prisma.storeBannerOverride.delete({ where: { id: override.id } });
     res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/translations/edit-session — gera um token de curta duração pra
+ * habilitar o "modo de edição" na vitrine (clicar num texto traduzido pra
+ * corrigi-lo direto na loja, sem digitar o texto original no admin). O
+ * token NÃO é o JWT de sessão do admin — é escopado só pra essa ação e
+ * expira rápido, porque a vitrine pública não tem acesso ao JWT real do
+ * iframe (domínio diferente) e não dá pra deixar POST /storefront/
+ * edit-override aberto sem nenhuma verificação (qualquer visitante
+ * poderia poluir a tradução da loja).
+ */
+router.post('/edit-session', (req, res, next) => {
+  try {
+    if (!req.store.domain) {
+      throw new AppError('Loja sem dominio publico configurado.', 400, 'NO_DOMAIN');
+    }
+
+    const editToken = jwt.sign(
+      { storeId: req.store.id, scope: 'translate-edit' },
+      process.env.JWT_SECRET,
+      { expiresIn: '30m' }
+    );
+    const editUrl = `https://${req.store.domain}/?traduzai_edit=${encodeURIComponent(editToken)}`;
+
+    res.json({ editToken, editUrl });
   } catch (err) {
     next(err);
   }

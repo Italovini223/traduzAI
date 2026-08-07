@@ -304,7 +304,21 @@
     "selectedBanner": "Banner seleccionado",
     "replacementImage": "Imagen sustituta (ya en el idioma de destino)",
     "bannerFileTooLarge": "Imagen demasiado grande (m\u00e1ximo 4MB).",
-    "noBannerOverrides": "Todav\u00eda no hay banners personalizados guardados."
+    "noBannerOverrides": "Todav\u00eda no hay banners personalizados guardados.",
+    "appearanceTitle": "Apariencia del selector de banderas",
+    "appearanceDescription": "Posici\u00f3n y color de destaque del selector de pa\u00eds que se muestra en la tienda.",
+    "pickerPosition": "Posici\u00f3n en la pantalla",
+    "pickerColor": "Color de destaque",
+    "positionBottomLeft": "Inferior izquierda",
+    "positionBottomRight": "Inferior derecha",
+    "positionTopLeft": "Superior izquierda",
+    "positionTopRight": "Superior derecha",
+    "appearanceSaved": "\u00a1Apariencia guardada con \u00e9xito!",
+    "editModeTitle": "Editor visual (corregir en la propia tienda)",
+    "editModeDescription": "Abre tu tienda real con un modo especial: pas\u00e1 el mouse sobre cualquier texto traducido para ver el contorno, hac\u00e9 clic para corregir la traducci\u00f3n ah\u00ed mismo \u2014 sin tener que escribir el texto original ac\u00e1 en el admin.",
+    "editModeCountry": "Pa\u00eds para visualizar",
+    "openEditMode": "Abrir tienda en modo de edici\u00f3n",
+    "editModeNoRules": "Configur\u00e1 al menos una regla de pa\u00eds arriba antes de usar el editor visual."
   },
   "footer": {
     "rights": "Todos los derechos reservados",

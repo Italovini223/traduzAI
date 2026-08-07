@@ -124,15 +124,15 @@ Levantamento comparando o traduzAI aos apps de traducao mais populares do
 Shopify (Translate & Adapt, Weglot, Transcy, langify, Hextom, LangShop,
 Interlingue, Bablic, GTranslate) — ordem de prioridade:
 
-1. URLs indexaveis por idioma + tags `hreflang` (maior gap de SEO hoje)
+1. ✅ Implementado — URLs indexaveis por idioma + tags `hreflang`
 2. Traducao do checkout (reconfirmar viabilidade — ver limitacao NubeSDK acima)
 3. Adaptacao por dialeto/tom por pais, nao so idioma (ex.: es-AR vs es-MX vs es-ES)
 4. Arredondamento de preco convertido (preco psicologico, ex. R$19,90)
 5. Exportar/importar traducoes em CSV
 6. Multiplos motores de traducao / ajuste de tom de marca (hoje so DeepL)
 7. Regras globais de exclusao/glossario (mais amplo que a correcao manual atual)
-8. Editor visual in-context (corrigir traducao clicando na propria vitrine)
-9. Personalizacao visual do seletor de bandeiras
+8. ✅ Implementado — Editor visual in-context (corrigir traducao clicando na propria vitrine)
+9. ✅ Implementado — Personalizacao visual do seletor de bandeiras
 
 Baixa prioridade pro nosso mercado: idioma RTL, traducao de e-mail
 transacional, marketplace de traducao humana. Detalhes de cada item, apps

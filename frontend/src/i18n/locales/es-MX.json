@@ -304,7 +304,21 @@
     "selectedBanner": "Banner seleccionado",
     "replacementImage": "Imagen sustituta (ya en el idioma de destino)",
     "bannerFileTooLarge": "Imagen demasiado grande (máximo 4MB).",
-    "noBannerOverrides": "Todavía no hay banners personalizados guardados."
+    "noBannerOverrides": "Todavía no hay banners personalizados guardados.",
+    "appearanceTitle": "Apariencia del selector de banderas",
+    "appearanceDescription": "Posición y color de acento del selector de país que se muestra en la tienda.",
+    "pickerPosition": "Posición en la pantalla",
+    "pickerColor": "Color de acento",
+    "positionBottomLeft": "Inferior izquierda",
+    "positionBottomRight": "Inferior derecha",
+    "positionTopLeft": "Superior izquierda",
+    "positionTopRight": "Superior derecha",
+    "appearanceSaved": "¡Apariencia guardada con éxito!",
+    "editModeTitle": "Editor visual (corregir en la propia tienda)",
+    "editModeDescription": "Abre tu tienda real con un modo especial: pasa el mouse sobre cualquier texto traducido para ver el contorno, haz clic para corregir la traducción ahí mismo — sin necesidad de escribir el texto original aquí en el admin.",
+    "editModeCountry": "País para visualizar",
+    "openEditMode": "Abrir tienda en modo de edición",
+    "editModeNoRules": "Configura al menos una regla de país arriba antes de usar el editor visual."
   },
   "footer": {
     "rights": "Todos los derechos reservados",

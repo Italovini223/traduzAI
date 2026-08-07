@@ -633,15 +633,144 @@
         // descartado pra sempre (confirmado em teste real: banner de texto
         // ficava sempre de fora do lote enviado pro backend).
         lazyImages.forEach(function (img) { translateImageText(img, CURRENT_CONFIG); });
+        if (isEditMode()) styleEditableTargets();
       }, 300);
     });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+  }
+
+  // ─── Modo de edição in-context — corrigir tradução clicando na própria
+  // vitrine, sem digitar o texto original manualmente no admin. Ativado via
+  // ?traduzai_edit=TOKEN na URL (token de curta duração emitido pelo admin
+  // em POST /api/translations/edit-session — ver widget.js não tem acesso
+  // ao JWT do admin, domínio diferente, por isso o token separado).
+  var EDIT_TOKEN = null;
+  var EDIT_STYLED = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
+
+  function isEditMode() {
+    return !!EDIT_TOKEN;
+  }
+
+  function closeEditPopup() {
+    var existing = document.getElementById('traduzai-edit-popup');
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+  }
+
+  function openEditPopup(el, node) {
+    closeEditPopup();
+    var original = ORIGINAL_TEXT.get(node) || node.nodeValue;
+    var current = node.nodeValue;
+    var rect = el.getBoundingClientRect();
+
+    var popup = document.createElement('div');
+    popup.id = 'traduzai-edit-popup';
+    popup.setAttribute('data-notranslate', '');
+    var top = Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - 220));
+    var left = Math.max(8, Math.min(rect.left, window.innerWidth - 300));
+    popup.style.cssText = 'position:fixed;top:' + top + 'px;left:' + left + 'px;z-index:2147483001;' +
+      'background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.3);padding:12px;' +
+      'width:280px;font-family:sans-serif;font-size:13px;color:#222;';
+
+    var label1 = document.createElement('div');
+    label1.textContent = 'Texto original:';
+    label1.style.cssText = 'font-weight:bold;margin-bottom:4px;';
+    var originalEl = document.createElement('div');
+    originalEl.textContent = original;
+    originalEl.style.cssText = 'color:#666;margin-bottom:8px;max-height:60px;overflow:auto;white-space:pre-wrap;';
+
+    var label2 = document.createElement('div');
+    label2.textContent = 'Tradução:';
+    label2.style.cssText = 'font-weight:bold;margin-bottom:4px;';
+    var textarea = document.createElement('textarea');
+    textarea.value = current;
+    textarea.style.cssText = 'width:100%;box-sizing:border-box;min-height:50px;margin-bottom:8px;' +
+      'font-family:sans-serif;font-size:13px;';
+
+    var saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.textContent = 'Salvar';
+    saveBtn.style.cssText = 'background:#1a73e8;color:#fff;border:none;border-radius:4px;' +
+      'padding:6px 12px;margin-right:6px;cursor:pointer;';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancelar';
+    cancelBtn.style.cssText = 'background:#eee;color:#222;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;';
+
+    var statusEl = document.createElement('div');
+    statusEl.style.cssText = 'margin-top:6px;font-size:12px;color:#666;';
+
+    saveBtn.addEventListener('click', function () {
+      var newText = textarea.value;
+      if (!newText || !newText.trim()) return;
+      saveBtn.disabled = true;
+      statusEl.textContent = 'Salvando...';
+      fetch(API_ORIGIN + '/storefront/edit-override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          store: STORE_ID,
+          editToken: EDIT_TOKEN,
+          sourceText: original,
+          targetLang: CURRENT_CONFIG.targetLanguage,
+          overrideText: newText,
+        }),
+      })
+        .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+        .then(function () {
+          node.nodeValue = newText;
+          statusEl.textContent = 'Salvo!';
+          setTimeout(closeEditPopup, 900);
+        })
+        .catch(function () {
+          statusEl.textContent = 'Erro ao salvar — tente de novo.';
+          statusEl.style.color = '#c0392b';
+          saveBtn.disabled = false;
+        });
+    });
+    cancelBtn.addEventListener('click', closeEditPopup);
+
+    popup.appendChild(label1);
+    popup.appendChild(originalEl);
+    popup.appendChild(label2);
+    popup.appendChild(textarea);
+    popup.appendChild(saveBtn);
+    popup.appendChild(cancelBtn);
+    popup.appendChild(statusEl);
+    document.body.appendChild(popup);
+    textarea.focus();
+  }
+
+  // Marca cada elemento que tem um nó de texto traduzido como clicável —
+  // roda de novo a cada tradução (inicial + conteúdo dinâmico), mas cada
+  // elemento só recebe os listeners uma vez (EDIT_STYLED).
+  function styleEditableTargets() {
+    KNOWN_NODES.forEach(function (node) {
+      var el = node.parentElement;
+      if (!el || (EDIT_STYLED && EDIT_STYLED.has(el))) return;
+      if (EDIT_STYLED) EDIT_STYLED.add(el);
+
+      el.addEventListener('mouseenter', function () {
+        el.setAttribute('data-traduzai-edit-outline', el.style.outline || '');
+        el.style.outline = '2px dashed #1a73e8';
+        el.style.outlineOffset = '2px';
+        el.style.cursor = 'pointer';
+      });
+      el.addEventListener('mouseleave', function () {
+        el.style.outline = el.getAttribute('data-traduzai-edit-outline') || '';
+      });
+      el.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openEditPopup(el, node);
+      });
+    });
   }
 
   function applyCountry(config) {
     CURRENT_CONFIG = config && config.active ? config : null;
     if (CURRENT_CONFIG) {
       translateVisibleNodes(CURRENT_CONFIG);
+      if (isEditMode()) styleEditableTargets();
     } else {
       restoreOriginals();
       restoreOriginalAttrs();
@@ -672,6 +801,44 @@
     try { window.localStorage.setItem(STORAGE_KEY, code || HOME_SENTINEL); } catch (e) { /* ignore — modo privado/storage bloqueado */ }
   }
 
+  // ─── hreflang — sinaliza pro Google que existem variantes traduzidas ──────
+  // Limitação real e aceita: a tradução é client-side (JS), não uma URL
+  // servida diferente por idioma — não é o ideal (SSR por URL seria melhor,
+  // mas exigiria a Nuvemshop rotear URL por idioma, fora do nosso controle).
+  // Ainda assim, cada `?country=XX` É funcional quando visitado direto (o
+  // próprio widget lê o param e aplica a tradução), o que é o requisito
+  // mínimo do hreflang — só depende do Googlebot executar o JS pra indexar
+  // certo, o que não é garantido. Ver CLAUDE.md.
+  function injectHreflangTags(countries, home) {
+    var currentUrl = window.location.href.split('#')[0];
+    var urlNoCountry = currentUrl.replace(/([?&])country=[^&]*/, '$1').replace(/[?&]$/, '').replace(/\?$/, '');
+    var separator = urlNoCountry.indexOf('?') === -1 ? '?' : '&';
+
+    // remove tags de uma injeção anterior (evita duplicar se init() rodar 2x)
+    var existing = document.head.querySelectorAll('link[data-traduzai-hreflang]');
+    for (var i = 0; i < existing.length; i++) existing[i].parentNode.removeChild(existing[i]);
+
+    function addLink(hreflang, href) {
+      var link = document.createElement('link');
+      link.setAttribute('rel', 'alternate');
+      link.setAttribute('hreflang', hreflang);
+      link.setAttribute('href', href);
+      link.setAttribute('data-traduzai-hreflang', '');
+      document.head.appendChild(link);
+    }
+
+    function toHreflang(language, countryCode) {
+      return language.indexOf('-') === -1 ? language + '-' + countryCode : language;
+    }
+
+    addLink('x-default', urlNoCountry);
+    if (home) addLink(toHreflang(home.language, home.code), urlNoCountry);
+
+    (countries || []).forEach(function (c) {
+      addLink(toHreflang(c.language, c.code), urlNoCountry + separator + 'country=' + c.code);
+    });
+  }
+
   // ─── Seletor manual de país (bandeiras) — fallback do geoip por IP ────────
   function makeFlagButton(code, title) {
     var btn = document.createElement('button');
@@ -688,8 +855,26 @@
     return btn;
   }
 
-  function buildCountryPicker(countries, initialCode, home) {
+  // Converte "#1a73e8" -> "rgba(26,115,232,ALPHA)" pro halo de destaque —
+  // não dá pra usar a cor sólida direto no box-shadow difuso.
+  function hexToRgba(hex, alpha) {
+    var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
+    if (!m) return 'rgba(26,115,232,' + alpha + ')';
+    return 'rgba(' + parseInt(m[1], 16) + ',' + parseInt(m[2], 16) + ',' + parseInt(m[3], 16) + ',' + alpha + ')';
+  }
+
+  var PICKER_POSITION_CSS = {
+    'bottom-left': 'bottom:16px;left:16px;',
+    'bottom-right': 'bottom:16px;right:16px;',
+    'top-left': 'top:16px;left:16px;',
+    'top-right': 'top:16px;right:16px;',
+  };
+
+  function buildCountryPicker(countries, initialCode, home, appearance) {
     if ((!countries || countries.length === 0) && !home) return;
+
+    var color = (appearance && appearance.color) || '#1a73e8';
+    var positionCss = PICKER_POSITION_CSS[(appearance && appearance.position)] || PICKER_POSITION_CSS['bottom-left'];
 
     var activeCode = null; // null = idioma/moeda de origem (home) em exibição
     var buttons = {};
@@ -697,13 +882,13 @@
 
     var container = document.createElement('div');
     container.setAttribute('data-notranslate', '');
-    container.style.cssText = 'position:fixed;bottom:16px;left:16px;z-index:2147483000;' +
+    container.style.cssText = 'position:fixed;' + positionCss + 'z-index:2147483000;' +
       'display:flex;gap:6px;background:#fff;padding:6px;border-radius:8px;' +
       'box-shadow:0 2px 8px rgba(0,0,0,.2);font-family:sans-serif;';
 
     function setActiveStyle(btn, isActive) {
-      btn.style.borderColor = isActive ? '#1a73e8' : 'transparent';
-      btn.style.boxShadow = isActive ? '0 0 0 2px rgba(26,115,232,0.35)' : 'none';
+      btn.style.borderColor = isActive ? color : 'transparent';
+      btn.style.boxShadow = isActive ? '0 0 0 2px ' + hexToRgba(color, 0.35) : 'none';
       btn.style.opacity = isActive ? '1' : '0.6';
     }
 
@@ -770,12 +955,20 @@
     // útil pra teste manual, contornando geoip por IP. Prioridade: URL >
     // escolha manual persistida (localStorage) > geoip automático.
     var countryOverride = null;
-    try { countryOverride = new URL(window.location.href).searchParams.get('country'); } catch (e) { /* ignore */ }
+    try {
+      var urlParams = new URL(window.location.href).searchParams;
+      countryOverride = urlParams.get('country');
+      EDIT_TOKEN = urlParams.get('traduzai_edit') || null;
+    } catch (e) { /* ignore */ }
     var effectiveInitial = countryOverride || getPersistedCountry();
 
     fetchJson(API_ORIGIN + '/storefront/rules?store=' + encodeURIComponent(STORE_ID))
       .then(function (data) {
-        buildCountryPicker((data && data.countries) || [], effectiveInitial, data && data.home);
+        buildCountryPicker((data && data.countries) || [], effectiveInitial, data && data.home, {
+          position: data && data.pickerPosition,
+          color: data && data.pickerColor,
+        });
+        injectHreflangTags((data && data.countries) || [], data && data.home);
       })
       .catch(function () { /* falha silenciosa */ });
 

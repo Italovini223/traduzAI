@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const geoip = require('geoip-lite');
 const prisma = require('../lib/prisma');
 const { AppError } = require('../lib/errors');
@@ -7,6 +8,7 @@ const { DeepLService } = require('../config/deepl');
 const { ExchangeRateService } = require('../config/exchangeRate');
 const { VisionService } = require('../config/vision');
 const { isValidLanguage, SUPPORTED_COUNTRIES, COUNTRY_DEFAULTS } = require('../lib/localeOptions');
+const { upsertTranslationOverride } = require('../lib/translationOverrides');
 
 const router = express.Router();
 
@@ -79,7 +81,12 @@ router.get('/rules', async (req, res, next) => {
       }));
     const home = findHomeCountry(config.sourceLanguage, config.baseCurrency);
 
-    res.json({ countries, home });
+    res.json({
+      countries,
+      home,
+      pickerPosition: config.pickerPosition,
+      pickerColor: config.pickerColor,
+    });
   } catch (err) {
     next(err);
   }
@@ -174,7 +181,16 @@ router.post('/translate', async (req, res, next) => {
       throw new AppError('Loja nao encontrada.', 404, 'STORE_NOT_FOUND');
     }
 
-    const safeTexts = texts.map((t) => String(t).slice(0, MAX_TEXT_LENGTH));
+    // .trim() antes do hash é obrigatório aqui — o texto real de um nó do
+    // DOM quase sempre vem com espaço/quebra de linha em volta (indentação
+    // do HTML do tema, ex.: "\n   Pague em até 5x sem juros\n   "). A
+    // correção manual (StoreTranslationOverride) grava o sourceHash já
+    // trimado (`lib/translationOverrides.js`); sem trimar aqui também, o
+    // hash calculado pra esse texto NUNCA bate com o hash salvo — a
+    // correção nunca se aplica pra nenhum texto com espaço em volta
+    // (confirmado em teste real: só funcionava por acaso pra texto sem
+    // essa formatação, como nome de produto).
+    const safeTexts = texts.map((t) => String(t).trim().slice(0, MAX_TEXT_LENGTH));
     const hashes = safeTexts.map(sha256);
 
     // Correção manual do lojista pra esse texto — checada ANTES do cache
@@ -339,6 +355,60 @@ router.post('/translate-image', async (req, res, next) => {
     }
 
     res.json({ images });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /storefront/edit-override
+ * body: { store, editToken, sourceText, targetLang, overrideText }
+ * Único endpoint PÚBLICO que escreve em StoreTranslationOverride — usado
+ * pelo "modo de edição" da vitrine (clicar num texto traduzido e corrigir
+ * ali mesmo, ver widget.js). Sem requireAuth (a vitrine não tem o JWT do
+ * admin, domínio diferente), mas NUNCA aceita sem editToken válido: token
+ * é assinado pelo backend em POST /api/translations/edit-session (rota
+ * autenticada), expira em 30min e é escopado (scope: 'translate-edit') —
+ * sem isso, qualquer visitante da loja poderia poluir a tradução alheia.
+ */
+router.post('/edit-override', async (req, res, next) => {
+  try {
+    const { store: nuvemshopId, editToken, sourceText, targetLang, overrideText } = req.body;
+
+    if (!nuvemshopId) {
+      throw new AppError('Parametro store obrigatorio.', 400, 'MISSING_STORE');
+    }
+    if (!editToken) {
+      throw new AppError('Token de edicao obrigatorio.', 401, 'MISSING_EDIT_TOKEN');
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(editToken, process.env.JWT_SECRET);
+    } catch {
+      throw new AppError('Token de edicao invalido ou expirado.', 401, 'INVALID_EDIT_TOKEN');
+    }
+    if (decoded.scope !== 'translate-edit') {
+      throw new AppError('Token de edicao invalido.', 401, 'INVALID_EDIT_TOKEN');
+    }
+
+    const store = await prisma.store.findUnique({ where: { nuvemshopId: String(nuvemshopId) } });
+    if (!store || store.id !== decoded.storeId) {
+      throw new AppError('Loja nao encontrada.', 404, 'STORE_NOT_FOUND');
+    }
+
+    if (typeof sourceText !== 'string' || !sourceText.trim()) {
+      throw new AppError('Texto original obrigatorio.', 400, 'MISSING_SOURCE_TEXT');
+    }
+    if (typeof overrideText !== 'string' || !overrideText.trim()) {
+      throw new AppError('Traducao corrigida obrigatoria.', 400, 'MISSING_OVERRIDE_TEXT');
+    }
+    if (!isValidLanguage(targetLang)) {
+      throw new AppError('targetLang invalido.', 400, 'INVALID_LANGUAGE');
+    }
+
+    const override = await upsertTranslationOverride({ storeId: store.id, sourceText, targetLang, overrideText });
+    res.status(201).json({ override });
   } catch (err) {
     next(err);
   }
