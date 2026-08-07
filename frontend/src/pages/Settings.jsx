@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Card, Button, Text, Title, Alert, Spinner, Select, Toggle } from '@nimbus-ds/components';
+import { Box, Card, Button, Text, Title, Alert, Spinner, Select, Toggle, Tabs } from '@nimbus-ds/components';
 import api from '../services/api.js';
 import CountryMapSelector from '../components/CountryMapSelector.jsx';
 import TranslationOverrides from '../components/TranslationOverrides.jsx';
@@ -35,6 +35,7 @@ export default function Settings() {
   const [savingAppearance, setSavingAppearance] = useState(false);
   const [editModeCountry, setEditModeCountry] = useState('');
   const [openingEditMode, setOpeningEditMode] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
 
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -325,7 +326,7 @@ export default function Settings() {
   };
 
   return (
-    <Box display="flex" flexDirection="column" gap="4">
+    <Box display="flex" flexDirection="column" gap="4" maxWidth="880px" marginX="auto" width="100%">
       <Title as="h2">{t('translations.title')}</Title>
 
       {successMsg && (
@@ -373,233 +374,251 @@ export default function Settings() {
         </Card.Body>
       </Card>
 
-      <Card>
-        <Card.Header>
-          <Title as="h3">{t('translations.sourceTitle')}</Title>
-        </Card.Header>
-        <Card.Body>
-          <Box display="flex" flexDirection="column" gap="3">
-            <Text color="neutral-textLow">{t('translations.sourceDescription')}</Text>
-            <Box display="flex" gap="3" flexWrap="wrap">
-              <Box display="flex" flexDirection="column" gap="1" minWidth="200px">
-                <Text>{t('translations.sourceLanguage')}</Text>
-                <Select
-                  name="sourceLanguage"
-                  value={config.sourceLanguage}
-                  disabled={loadingOptions}
-                  onChange={(e) => setConfig((prev) => ({ ...prev, sourceLanguage: e.target.value }))}
-                >
-                  {options.languages.map((lang) => (
-                    <Select.Option key={lang.code} value={lang.code} label={lang.label}>
-                      {lang.label}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </Box>
-              <Box display="flex" flexDirection="column" gap="1" minWidth="200px">
-                <Text>{t('translations.baseCurrency')}</Text>
-                <Select
-                  name="baseCurrency"
-                  value={config.baseCurrency}
-                  disabled={loadingOptions}
-                  onChange={(e) => setConfig((prev) => ({ ...prev, baseCurrency: e.target.value }))}
-                >
-                  {options.currencies.map((cur) => (
-                    <Select.Option key={cur.code} value={cur.code} label={cur.label}>
-                      {cur.label}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </Box>
-              <Box display="flex" alignItems="flex-end">
-                <Button appearance="primary" onClick={handleSaveSource} disabled={savingSource}>
-                  {savingSource ? t('common.loading') : t('common.save')}
-                </Button>
-              </Box>
-            </Box>
+      <Tabs selected={activeTab} onTabSelect={setActiveTab}>
+        <Tabs.Item label={t('translations.tabGeneral')}>
+          <Box display="flex" flexDirection="column" gap="4" paddingTop="4">
+            <Card>
+              <Card.Header>
+                <Title as="h3">{t('translations.sourceTitle')}</Title>
+              </Card.Header>
+              <Card.Body>
+                <Box display="flex" flexDirection="column" gap="3">
+                  <Text color="neutral-textLow">{t('translations.sourceDescription')}</Text>
+                  <Box display="flex" gap="3" flexWrap="wrap">
+                    <Box display="flex" flexDirection="column" gap="1" minWidth="200px">
+                      <Text>{t('translations.sourceLanguage')}</Text>
+                      <Select
+                        name="sourceLanguage"
+                        value={config.sourceLanguage}
+                        disabled={loadingOptions}
+                        onChange={(e) => setConfig((prev) => ({ ...prev, sourceLanguage: e.target.value }))}
+                      >
+                        {options.languages.map((lang) => (
+                          <Select.Option key={lang.code} value={lang.code} label={lang.label}>
+                            {lang.label}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    </Box>
+                    <Box display="flex" flexDirection="column" gap="1" minWidth="200px">
+                      <Text>{t('translations.baseCurrency')}</Text>
+                      <Select
+                        name="baseCurrency"
+                        value={config.baseCurrency}
+                        disabled={loadingOptions}
+                        onChange={(e) => setConfig((prev) => ({ ...prev, baseCurrency: e.target.value }))}
+                      >
+                        {options.currencies.map((cur) => (
+                          <Select.Option key={cur.code} value={cur.code} label={cur.label}>
+                            {cur.label}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    </Box>
+                    <Box display="flex" alignItems="flex-end">
+                      <Button appearance="primary" onClick={handleSaveSource} disabled={savingSource}>
+                        {savingSource ? t('common.loading') : t('common.save')}
+                      </Button>
+                    </Box>
+                  </Box>
+                </Box>
+              </Card.Body>
+            </Card>
           </Box>
-        </Card.Body>
-      </Card>
+        </Tabs.Item>
 
-      <Card>
-        <Card.Header>
-          <Title as="h3">{t('translations.rulesTitle')}</Title>
-        </Card.Header>
-        <Card.Body>
-          <Box display="flex" flexDirection="column" gap="3">
-            <Text color="neutral-textLow">{t('translations.rulesDescription')}</Text>
+        <Tabs.Item label={t('translations.tabCountry')}>
+          <Box display="flex" flexDirection="column" gap="4" paddingTop="4">
+            <Card>
+              <Card.Header>
+                <Title as="h3">{t('translations.rulesTitle')}</Title>
+              </Card.Header>
+              <Card.Body>
+                <Box display="flex" flexDirection="column" gap="3">
+                  <Text color="neutral-textLow">{t('translations.rulesDescription')}</Text>
 
-            {loadingConfig || loadingOptions ? (
-              <Spinner />
-            ) : (
-              <CountryMapSelector
-                countries={options.countries}
-                languages={options.languages}
-                currencies={options.currencies}
-                rules={rules}
-                defaults={options.defaults}
-                onAddRule={handleAddRule}
-                onUpdateRule={handleUpdateRule}
-                onDeleteRule={handleDeleteRule}
-              />
-            )}
+                  {loadingConfig || loadingOptions ? (
+                    <Spinner />
+                  ) : (
+                    <CountryMapSelector
+                      countries={options.countries}
+                      languages={options.languages}
+                      currencies={options.currencies}
+                      rules={rules}
+                      defaults={options.defaults}
+                      onAddRule={handleAddRule}
+                      onUpdateRule={handleUpdateRule}
+                      onDeleteRule={handleDeleteRule}
+                    />
+                  )}
+                </Box>
+              </Card.Body>
+            </Card>
+
+            <Card>
+              <Card.Header>
+                <Title as="h3">{t('translations.appearanceTitle')}</Title>
+              </Card.Header>
+              <Card.Body>
+                <Box display="flex" flexDirection="column" gap="3">
+                  <Text color="neutral-textLow">{t('translations.appearanceDescription')}</Text>
+                  <Box display="flex" gap="3" flexWrap="wrap">
+                    <Box display="flex" flexDirection="column" gap="1" minWidth="200px">
+                      <Text>{t('translations.pickerPosition')}</Text>
+                      <Select
+                        name="pickerPosition"
+                        value={config.pickerPosition}
+                        onChange={(e) => setConfig((prev) => ({ ...prev, pickerPosition: e.target.value }))}
+                      >
+                        <Select.Option value="bottom-left" label={t('translations.positionBottomLeft')}>
+                          {t('translations.positionBottomLeft')}
+                        </Select.Option>
+                        <Select.Option value="bottom-right" label={t('translations.positionBottomRight')}>
+                          {t('translations.positionBottomRight')}
+                        </Select.Option>
+                        <Select.Option value="top-left" label={t('translations.positionTopLeft')}>
+                          {t('translations.positionTopLeft')}
+                        </Select.Option>
+                        <Select.Option value="top-right" label={t('translations.positionTopRight')}>
+                          {t('translations.positionTopRight')}
+                        </Select.Option>
+                      </Select>
+                    </Box>
+                    <Box display="flex" flexDirection="column" gap="1">
+                      <Text>{t('translations.pickerColor')}</Text>
+                      <input
+                        type="color"
+                        value={config.pickerColor}
+                        onChange={(e) => setConfig((prev) => ({ ...prev, pickerColor: e.target.value }))}
+                        style={{ width: '48px', height: '36px', padding: 0, border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </Box>
+                    <Box display="flex" alignItems="flex-end">
+                      <Button appearance="primary" onClick={handleSaveAppearance} disabled={savingAppearance}>
+                        {savingAppearance ? t('common.loading') : t('common.save')}
+                      </Button>
+                    </Box>
+                  </Box>
+                </Box>
+              </Card.Body>
+            </Card>
           </Box>
-        </Card.Body>
-      </Card>
+        </Tabs.Item>
 
-      <Card>
-        <Card.Header>
-          <Title as="h3">{t('translations.appearanceTitle')}</Title>
-        </Card.Header>
-        <Card.Body>
-          <Box display="flex" flexDirection="column" gap="3">
-            <Text color="neutral-textLow">{t('translations.appearanceDescription')}</Text>
-            <Box display="flex" gap="3" flexWrap="wrap">
-              <Box display="flex" flexDirection="column" gap="1" minWidth="200px">
-                <Text>{t('translations.pickerPosition')}</Text>
-                <Select
-                  name="pickerPosition"
-                  value={config.pickerPosition}
-                  onChange={(e) => setConfig((prev) => ({ ...prev, pickerPosition: e.target.value }))}
-                >
-                  <Select.Option value="bottom-left" label={t('translations.positionBottomLeft')}>
-                    {t('translations.positionBottomLeft')}
-                  </Select.Option>
-                  <Select.Option value="bottom-right" label={t('translations.positionBottomRight')}>
-                    {t('translations.positionBottomRight')}
-                  </Select.Option>
-                  <Select.Option value="top-left" label={t('translations.positionTopLeft')}>
-                    {t('translations.positionTopLeft')}
-                  </Select.Option>
-                  <Select.Option value="top-right" label={t('translations.positionTopRight')}>
-                    {t('translations.positionTopRight')}
-                  </Select.Option>
-                </Select>
-              </Box>
-              <Box display="flex" flexDirection="column" gap="1">
-                <Text>{t('translations.pickerColor')}</Text>
-                <input
-                  type="color"
-                  value={config.pickerColor}
-                  onChange={(e) => setConfig((prev) => ({ ...prev, pickerColor: e.target.value }))}
-                  style={{ width: '48px', height: '36px', padding: 0, border: '1px solid #ddd', borderRadius: '4px' }}
-                />
-              </Box>
-              <Box display="flex" alignItems="flex-end">
-                <Button appearance="primary" onClick={handleSaveAppearance} disabled={savingAppearance}>
-                  {savingAppearance ? t('common.loading') : t('common.save')}
-                </Button>
-              </Box>
-            </Box>
+        <Tabs.Item label={t('translations.tabTextFixes')}>
+          <Box display="flex" flexDirection="column" gap="4" paddingTop="4">
+            <Card>
+              <Card.Header>
+                <Title as="h3">{t('translations.editModeTitle')}</Title>
+              </Card.Header>
+              <Card.Body>
+                <Box display="flex" flexDirection="column" gap="3">
+                  <Text color="neutral-textLow">{t('translations.editModeDescription')}</Text>
+                  <Box display="flex" gap="3" flexWrap="wrap" alignItems="flex-end">
+                    <Box display="flex" flexDirection="column" gap="1" minWidth="180px">
+                      <Text>{t('translations.editModeCountry')}</Text>
+                      <Select
+                        name="editModeCountry"
+                        value={editModeCountry}
+                        disabled={rules.length === 0}
+                        onChange={(e) => setEditModeCountry(e.target.value)}
+                      >
+                        {rules.map((r) => (
+                          <Select.Option key={r.country} value={r.country} label={r.country}>
+                            {r.country}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    </Box>
+                    <Button appearance="neutral" onClick={handleOpenEditMode} disabled={openingEditMode || rules.length === 0}>
+                      {openingEditMode ? t('common.loading') : t('translations.openEditMode')}
+                    </Button>
+                  </Box>
+                  {rules.length === 0 && (
+                    <Text fontSize="caption" color="neutral-textLow">{t('translations.editModeNoRules')}</Text>
+                  )}
+                </Box>
+              </Card.Body>
+            </Card>
+
+            <Card>
+              <Card.Header>
+                <Title as="h3">{t('translations.glossaryTitle')}</Title>
+              </Card.Header>
+              <Card.Body>
+                <Box display="flex" flexDirection="column" gap="3">
+                  <Text color="neutral-textLow">{t('translations.glossaryDescription')}</Text>
+
+                  {loadingGlossary || loadingConfig || loadingOptions ? (
+                    <Spinner />
+                  ) : (
+                    <CountryGlossary
+                      terms={glossaryTerms}
+                      countries={rules.map((r) => ({
+                        code: r.country,
+                        name: options.countries.find((c) => c.code === r.country)?.label || r.country,
+                      }))}
+                      onAdd={handleAddGlossaryTerm}
+                      onUpdate={handleUpdateGlossaryTerm}
+                      onDelete={handleDeleteGlossaryTerm}
+                    />
+                  )}
+                </Box>
+              </Card.Body>
+            </Card>
+
+            <Card>
+              <Card.Header>
+                <Title as="h3">{t('translations.overridesTitle')}</Title>
+              </Card.Header>
+              <Card.Body>
+                <Box display="flex" flexDirection="column" gap="3">
+                  <Text color="neutral-textLow">{t('translations.overridesDescription')}</Text>
+
+                  {loadingOverrides || loadingOptions ? (
+                    <Spinner />
+                  ) : (
+                    <TranslationOverrides
+                      overrides={overrides}
+                      languages={options.languages}
+                      onAdd={handleAddOverride}
+                      onUpdate={handleUpdateOverride}
+                      onDelete={handleDeleteOverride}
+                    />
+                  )}
+                </Box>
+              </Card.Body>
+            </Card>
           </Box>
-        </Card.Body>
-      </Card>
+        </Tabs.Item>
 
-      <Card>
-        <Card.Header>
-          <Title as="h3">{t('translations.editModeTitle')}</Title>
-        </Card.Header>
-        <Card.Body>
-          <Box display="flex" flexDirection="column" gap="3">
-            <Text color="neutral-textLow">{t('translations.editModeDescription')}</Text>
-            <Box display="flex" gap="3" flexWrap="wrap" alignItems="flex-end">
-              <Box display="flex" flexDirection="column" gap="1" minWidth="180px">
-                <Text>{t('translations.editModeCountry')}</Text>
-                <Select
-                  name="editModeCountry"
-                  value={editModeCountry}
-                  disabled={rules.length === 0}
-                  onChange={(e) => setEditModeCountry(e.target.value)}
-                >
-                  {rules.map((r) => (
-                    <Select.Option key={r.country} value={r.country} label={r.country}>
-                      {r.country}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </Box>
-              <Button appearance="neutral" onClick={handleOpenEditMode} disabled={openingEditMode || rules.length === 0}>
-                {openingEditMode ? t('common.loading') : t('translations.openEditMode')}
-              </Button>
-            </Box>
-            {rules.length === 0 && (
-              <Text fontSize="caption" color="neutral-textLow">{t('translations.editModeNoRules')}</Text>
-            )}
+        <Tabs.Item label={t('translations.tabBanners')}>
+          <Box display="flex" flexDirection="column" gap="4" paddingTop="4">
+            <Card>
+              <Card.Header>
+                <Title as="h3">{t('translations.bannerOverridesTitle')}</Title>
+              </Card.Header>
+              <Card.Body>
+                <Box display="flex" flexDirection="column" gap="3">
+                  <Text color="neutral-textLow">{t('translations.bannerOverridesDescription')}</Text>
+
+                  {loadingBannerOverrides || loadingOptions ? (
+                    <Spinner />
+                  ) : (
+                    <BannerOverrides
+                      overrides={bannerOverrides}
+                      languages={options.languages}
+                      onDetect={handleDetectBanners}
+                      onAdd={handleAddBannerOverride}
+                      onDelete={handleDeleteBannerOverride}
+                    />
+                  )}
+                </Box>
+              </Card.Body>
+            </Card>
           </Box>
-        </Card.Body>
-      </Card>
-
-      <Card>
-        <Card.Header>
-          <Title as="h3">{t('translations.glossaryTitle')}</Title>
-        </Card.Header>
-        <Card.Body>
-          <Box display="flex" flexDirection="column" gap="3">
-            <Text color="neutral-textLow">{t('translations.glossaryDescription')}</Text>
-
-            {loadingGlossary || loadingConfig || loadingOptions ? (
-              <Spinner />
-            ) : (
-              <CountryGlossary
-                terms={glossaryTerms}
-                countries={rules.map((r) => ({
-                  code: r.country,
-                  name: options.countries.find((c) => c.code === r.country)?.label || r.country,
-                }))}
-                onAdd={handleAddGlossaryTerm}
-                onUpdate={handleUpdateGlossaryTerm}
-                onDelete={handleDeleteGlossaryTerm}
-              />
-            )}
-          </Box>
-        </Card.Body>
-      </Card>
-
-      <Card>
-        <Card.Header>
-          <Title as="h3">{t('translations.overridesTitle')}</Title>
-        </Card.Header>
-        <Card.Body>
-          <Box display="flex" flexDirection="column" gap="3">
-            <Text color="neutral-textLow">{t('translations.overridesDescription')}</Text>
-
-            {loadingOverrides || loadingOptions ? (
-              <Spinner />
-            ) : (
-              <TranslationOverrides
-                overrides={overrides}
-                languages={options.languages}
-                onAdd={handleAddOverride}
-                onUpdate={handleUpdateOverride}
-                onDelete={handleDeleteOverride}
-              />
-            )}
-          </Box>
-        </Card.Body>
-      </Card>
-
-      <Card>
-        <Card.Header>
-          <Title as="h3">{t('translations.bannerOverridesTitle')}</Title>
-        </Card.Header>
-        <Card.Body>
-          <Box display="flex" flexDirection="column" gap="3">
-            <Text color="neutral-textLow">{t('translations.bannerOverridesDescription')}</Text>
-
-            {loadingBannerOverrides || loadingOptions ? (
-              <Spinner />
-            ) : (
-              <BannerOverrides
-                overrides={bannerOverrides}
-                languages={options.languages}
-                onDetect={handleDetectBanners}
-                onAdd={handleAddBannerOverride}
-                onDelete={handleDeleteBannerOverride}
-              />
-            )}
-          </Box>
-        </Card.Body>
-      </Card>
+        </Tabs.Item>
+      </Tabs>
     </Box>
   );
 }
