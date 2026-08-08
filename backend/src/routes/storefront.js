@@ -1,10 +1,10 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const geoip = require('geoip-lite');
 const prisma = require('../lib/prisma');
 const { AppError } = require('../lib/errors');
 const { DeepLService } = require('../config/deepl');
 const { ExchangeRateService } = require('../config/exchangeRate');
+const { GeoIPService } = require('../config/geoip');
 const { VisionService } = require('../config/vision');
 const { isValidLanguage, isValidCountry, SUPPORTED_COUNTRIES, COUNTRY_DEFAULTS } = require('../lib/localeOptions');
 const { upsertTranslationOverride } = require('../lib/translationOverrides');
@@ -109,10 +109,13 @@ router.get('/config', async (req, res, next) => {
     }
 
     const config = store.translationConfig;
-    // geoip-lite não resolve IPs locais/privados (ex: dev em localhost) — o
-    // override abaixo existe só para permitir testar o fluxo manualmente.
-    const geo = geoip.lookup(req.ip);
-    const country = req.query.country ? String(req.query.country).toUpperCase() : geo?.country;
+    // GeoIPService: geoip-lite local primeiro, cai pra API externa (ipapi.co)
+    // só quando a base local não reconhece o IP — nenhum dos dois resolve IP
+    // privado/local (ex: dev em localhost), por isso o override abaixo existe
+    // pra permitir testar o fluxo manualmente.
+    const country = req.query.country
+      ? String(req.query.country).toUpperCase()
+      : await GeoIPService.lookupCountry(req.ip);
 
     if (!country) {
       return res.json({ active: false });

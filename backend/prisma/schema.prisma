@@ -367,6 +367,17 @@ model ExchangeRate {
   @@map("exchange_rates")
 }
 
+// Cache de IP -> pais (fallback via API externa quando geoip-lite, base local,
+// nao reconhece o IP). country null = lookup externo falhou/sem resultado,
+// cacheado com TTL curto pra tentar de novo logo (ver config/geoip.js).
+model IpGeoCache {
+  id        Int      @id @default(autoincrement())
+  ip        String   @unique
+  country   String?
+  fetchedAt DateTime @default(now())
+  @@map("ip_geo_cache")
+}
+
 // Pedidos pagos, gravados via webhook order/paid — fonte do mapa/gráfico de
 // vendas por país no Dashboard. Populado de forma best-effort (nunca bloqueia
 // o webhook); ausência de linha != ausência de venda se o webhook falhar.

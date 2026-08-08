@@ -15,8 +15,14 @@ const PORT = parseInt(process.env.PORT) || 3001;
 
 // ─── Trust proxy (Railway/Vercel/ALB ficam na frente).
 // Sem isto, req.ip = IP do proxy → os rate limiters por IP viram globais e os
-// audit logs gravam o IP do proxy. O valor 1 confia no primeiro hop.
-app.set('trust proxy', 1);
+// audit logs gravam o IP do proxy. Railway tem DOIS hops entre o visitante e
+// o container (edge + load balancer interno) — confirmado em produção via
+// X-Forwarded-For + X-Real-IP: com valor 1, req.ip virava o IP do hop
+// intermediário do Railway (o mesmo pra praticamente todo visitante), nunca
+// o IP real — isso quebrava silenciosamente TODA detecção de país por geoip,
+// não só em teste/VPN. Valor 2 confia nos dois hops internos e resolve o IP
+// real do visitante (bate com o header X-Real-IP que o Railway também manda).
+app.set('trust proxy', 2);
 
 // ─── Security headers
 app.use(helmet());
