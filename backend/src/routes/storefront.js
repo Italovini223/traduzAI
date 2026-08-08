@@ -1,5 +1,4 @@
 const express = require('express');
-const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const geoip = require('geoip-lite');
 const prisma = require('../lib/prisma');
@@ -9,6 +8,7 @@ const { ExchangeRateService } = require('../config/exchangeRate');
 const { VisionService } = require('../config/vision');
 const { isValidLanguage, isValidCountry, SUPPORTED_COUNTRIES, COUNTRY_DEFAULTS } = require('../lib/localeOptions');
 const { upsertTranslationOverride } = require('../lib/translationOverrides');
+const { translateTexts, sha256 } = require('../lib/translateText');
 
 const router = express.Router();
 
@@ -17,41 +17,11 @@ const router = express.Router();
 // identificada pelo nuvemshopId enviado como parametro, nao por sessao.
 
 const MAX_TEXTS_PER_REQUEST = 200;
-const MAX_TEXT_LENGTH = 2000;
 
 const COUNTRY_LABELS = SUPPORTED_COUNTRIES.reduce((acc, c) => {
   acc[c.code] = c.label;
   return acc;
 }, {});
-
-function sha256(text) {
-  return crypto.createHash('sha256').update(text).digest('hex');
-}
-
-function escapeRegExp(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-// Adaptação de dialeto/tom por PAÍS — aplicada em cima da tradução base
-// (override/cache/DeepL), sempre por último. Existe porque o DeepL só tem
-// um "ES" genérico: não distingue espanhol da Argentina/México/Espanha, e
-// termos formais/informais (ex.: "ustedes" vs "vos") variam muito entre
-// eles. Cada termo é um find/replace com borda de palavra, case-insensitive
-// — troca "ustedes" -> "vos" em QUALQUER texto traduzido pra aquele país,
-// sem precisar de uma correção manual por string inteira.
-function applyGlossary(text, terms) {
-  return terms.reduce((result, term) => {
-    const pattern = new RegExp(`\\b${escapeRegExp(term.findText)}\\b`, 'gi');
-    return result.replace(pattern, (match) => {
-      // Preserva maiúscula inicial (comum em início de frase) — sem isso,
-      // "Ustedes" no início de uma frase virava "vos" (minúsculo), quebrando
-      // a formatação natural do texto (confirmado em teste real).
-      const isCapitalized = match[0] !== match[0].toLowerCase() && match[0] === match[0].toUpperCase();
-      if (!isCapitalized) return term.replaceText;
-      return term.replaceText.charAt(0).toUpperCase() + term.replaceText.slice(1);
-    });
-  }, text);
-}
 
 /**
  * Acha um pais cujo idioma+moeda padrao (COUNTRY_DEFAULTS) batam exatamente
@@ -210,74 +180,16 @@ router.post('/translate', async (req, res, next) => {
       throw new AppError('Loja nao encontrada.', 404, 'STORE_NOT_FOUND');
     }
 
-    // .trim() antes do hash é obrigatório aqui — o texto real de um nó do
-    // DOM quase sempre vem com espaço/quebra de linha em volta (indentação
-    // do HTML do tema, ex.: "\n   Pague em até 5x sem juros\n   "). A
-    // correção manual (StoreTranslationOverride) grava o sourceHash já
-    // trimado (`lib/translationOverrides.js`); sem trimar aqui também, o
-    // hash calculado pra esse texto NUNCA bate com o hash salvo — a
-    // correção nunca se aplica pra nenhum texto com espaço em volta
-    // (confirmado em teste real: só funcionava por acaso pra texto sem
-    // essa formatação, como nome de produto).
-    const safeTexts = texts.map((t) => String(t).trim().slice(0, MAX_TEXT_LENGTH));
-    const hashes = safeTexts.map(sha256);
-
-    // Correção manual do lojista pra esse texto — checada ANTES do cache
-    // global/DeepL. Por loja (não vaza pra outras lojas com o mesmo texto).
-    const overrides = await prisma.storeTranslationOverride.findMany({
-      where: { storeId: store.id, sourceHash: { in: hashes }, targetLang },
+    // Pipeline completo (correção manual > cache > DeepL > glossário de
+    // país) mora em lib/translateText.js — reaproveitado também pelo preview
+    // de SEO no admin (routes/translations.js).
+    const finalTranslations = await translateTexts({
+      storeId: store.id,
+      texts,
+      sourceLang,
+      targetLang,
+      country,
     });
-    const overrideMap = new Map(overrides.map((o) => [o.sourceHash, o.overrideText]));
-
-    const cached = await prisma.translationCache.findMany({
-      where: { sourceHash: { in: hashes }, sourceLang: sourceLang || '', targetLang },
-    });
-    const cacheMap = new Map(cached.map((c) => [c.sourceHash, c.translatedText]));
-
-    const missIndexes = [];
-    const missTexts = [];
-    safeTexts.forEach((text, i) => {
-      if (!overrideMap.has(hashes[i]) && !cacheMap.has(hashes[i])) {
-        missIndexes.push(i);
-        missTexts.push(text);
-      }
-    });
-
-    if (missTexts.length > 0) {
-      const translated = await DeepLService.translateBatch(missTexts, targetLang, sourceLang);
-
-      const rowsToCache = [];
-      missIndexes.forEach((originalIndex, j) => {
-        const translatedText = translated[j] ?? safeTexts[originalIndex];
-        cacheMap.set(hashes[originalIndex], translatedText);
-        rowsToCache.push({
-          sourceHash: hashes[originalIndex],
-          sourceLang: sourceLang || '',
-          targetLang,
-          sourceText: safeTexts[originalIndex],
-          translatedText,
-        });
-      });
-
-      if (rowsToCache.length > 0) {
-        await prisma.translationCache.createMany({ data: rowsToCache, skipDuplicates: true });
-      }
-    }
-
-    const translations = safeTexts.map((text, i) => overrideMap.get(hashes[i]) ?? cacheMap.get(hashes[i]) ?? text);
-
-    // Adaptação de dialeto/tom por país — por último, em cima de qualquer
-    // fonte (override, cache ou DeepL). Só busca se o widget mandou um país
-    // (nem toda chamada manda — ver widget.js).
-    let finalTranslations = translations;
-    if (country) {
-      const glossaryTerms = await prisma.storeCountryGlossaryTerm.findMany({
-        where: { storeId: store.id, country },
-      });
-      if (glossaryTerms.length > 0) {
-        finalTranslations = translations.map((t) => applyGlossary(t, glossaryTerms));
-      }
-    }
 
     res.json({ translations: finalTranslations });
   } catch (err) {

@@ -6,6 +6,7 @@ import CountryMapSelector from '../components/CountryMapSelector.jsx';
 import TranslationOverrides from '../components/TranslationOverrides.jsx';
 import BannerOverrides from '../components/BannerOverrides.jsx';
 import CountryGlossary from '../components/CountryGlossary.jsx';
+import SeoPreview from '../components/SeoPreview.jsx';
 
 const PICKER_PREVIEW_POSITION = {
   'bottom-left': { bottom: '10px', left: '10px' },
@@ -44,6 +45,11 @@ export default function Settings() {
   const [editModeCountry, setEditModeCountry] = useState('');
   const [openingEditMode, setOpeningEditMode] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
+  const [overridePrefill, setOverridePrefill] = useState(null);
+
+  const handleCorrectSeoField = (sourceText, targetLang, currentTranslation) => {
+    setOverridePrefill({ key: Date.now(), sourceText, targetLang, overrideText: currentTranslation });
+  };
 
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
@@ -563,6 +569,22 @@ export default function Settings() {
           <Box display="flex" flexDirection="column" gap="4" paddingTop="4">
             <Card>
               <Card.Header>
+                <Title as="h3">{t('translations.seoPreviewTitle')}</Title>
+              </Card.Header>
+              <Card.Body>
+                <Box display="flex" flexDirection="column" gap="3">
+                  <Text color="neutral-textLow">{t('translations.seoPreviewDescription')}</Text>
+                  <SeoPreview
+                    languages={options.languages}
+                    countries={options.countries}
+                    onCorrect={handleCorrectSeoField}
+                  />
+                </Box>
+              </Card.Body>
+            </Card>
+
+            <Card>
+              <Card.Header>
                 <Title as="h3">{t('translations.editModeTitle')}</Title>
               </Card.Header>
               <Card.Body>
@@ -637,6 +659,7 @@ export default function Settings() {
                     onAdd={handleAddOverride}
                     onUpdate={handleUpdateOverride}
                     onDelete={handleDeleteOverride}
+                    prefill={overridePrefill}
                   />
                 </Box>
               </Card.Body>

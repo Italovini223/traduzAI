@@ -6,6 +6,7 @@ const prisma = require('../lib/prisma');
 const { AppError } = require('../lib/errors');
 const { requireAuth } = require('../middleware/auth');
 const { upsertTranslationOverride } = require('../lib/translationOverrides');
+const { translateTexts } = require('../lib/translateText');
 const {
   SUPPORTED_COUNTRIES,
   SUPPORTED_LANGUAGES,
@@ -122,6 +123,28 @@ function extractBannerCandidates(html, baseUrl) {
   }
 
   return dedupeByLargestVariant(urls).slice(0, MAX_BANNER_CANDIDATES);
+}
+
+// Extrai <title> e meta tags de SEO do HTML público da loja — mesma
+// abordagem sem parser de DOM usada em extractBannerCandidates(). Atributos
+// de <meta> podem vir em qualquer ordem (name/property antes ou depois de
+// content), por isso casa a tag inteira primeiro e só depois procura o
+// content dentro dela.
+function extractTitle(html) {
+  const match = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+  return match ? match[1].trim() : '';
+}
+
+function extractMetaContent(html, attr, value) {
+  const tagRegex = /<meta\b[^>]*>/gi;
+  const tags = html.match(tagRegex) || [];
+  for (const tag of tags) {
+    const attrRegex = new RegExp(`${attr}\\s*=\\s*["']${value}["']`, 'i');
+    if (!attrRegex.test(tag)) continue;
+    const contentMatch = tag.match(/content\s*=\s*["']([^"']*)["']/i);
+    if (contentMatch) return contentMatch[1].trim();
+  }
+  return '';
 }
 
 // Todas as rotas de tradução exigem loja logada (configuração feita pelo lojista).
@@ -572,6 +595,73 @@ router.delete('/glossary/:id', async (req, res, next) => {
 
     await prisma.storeCountryGlossaryTerm.delete({ where: { id: term.id } });
     res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/translations/seo-preview — mostra como titulo/meta description/
+ * og:title/og:description da pagina inicial vao aparecer traduzidos pra cada
+ * pais configurado. Le o HTML publico da loja (mesma tecnica de
+ * detect-banners) e passa pelo MESMO pipeline de traducao da vitrine
+ * (lib/translateText.js) — sem custo extra de API pra texto ja visitado por
+ * um comprador real, porque cai no TranslationCache.
+ */
+router.get('/seo-preview', async (req, res, next) => {
+  try {
+    const store = await prisma.store.findUnique({
+      where: { id: req.store.id },
+      include: { translationConfig: true, localeRules: true },
+    });
+    if (!store?.domain) {
+      throw new AppError('Loja sem dominio publico configurado.', 400, 'NO_DOMAIN');
+    }
+    if (!store.translationConfig) {
+      return res.json({ source: null, previews: [] });
+    }
+
+    const baseUrl = `https://${store.domain}/`;
+    const html = await axios
+      .get(baseUrl, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0 (traduzAI SEO preview)' } })
+      .then((r) => r.data);
+
+    const source = {
+      title: extractTitle(html),
+      metaDescription: extractMetaContent(html, 'name', 'description'),
+      ogTitle: extractMetaContent(html, 'property', 'og:title'),
+      ogDescription: extractMetaContent(html, 'property', 'og:description'),
+    };
+
+    const config = store.translationConfig;
+    // Mesmo filtro de GET /storefront/rules — regra sem efeito (mesmo
+    // idioma E mesma moeda da origem) nao aparece pro visitante, entao nao
+    // faz sentido mostrar preview pra ela aqui tambem.
+    const rules = store.localeRules.filter(
+      (rule) => rule.language !== config.sourceLanguage || rule.currency !== config.baseCurrency
+    );
+
+    const fields = ['title', 'metaDescription', 'ogTitle', 'ogDescription'];
+    const nonEmptyFields = fields.filter((f) => source[f]);
+
+    const previews = [];
+    for (const rule of rules) {
+      let translated = [];
+      if (nonEmptyFields.length > 0) {
+        translated = await translateTexts({
+          storeId: store.id,
+          texts: nonEmptyFields.map((f) => source[f]),
+          sourceLang: config.sourceLanguage,
+          targetLang: rule.language,
+          country: rule.country,
+        });
+      }
+      const preview = { country: rule.country, language: rule.language };
+      nonEmptyFields.forEach((f, i) => { preview[f] = translated[i]; });
+      previews.push(preview);
+    }
+
+    res.json({ source, previews });
   } catch (err) {
     next(err);
   }

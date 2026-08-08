@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Input, Select, Text } from '@nimbus-ds/components';
 
-export default function TranslationOverrides({ overrides, languages, onAdd, onUpdate, onDelete }) {
+export default function TranslationOverrides({ overrides, languages, onAdd, onUpdate, onDelete, prefill }) {
   const { t } = useTranslation();
 
   const [sourceText, setSourceText] = useState('');
@@ -12,6 +12,20 @@ export default function TranslationOverrides({ overrides, languages, onAdd, onUp
 
   const [editingId, setEditingId] = useState(null);
   const [editingText, setEditingText] = useState('');
+
+  const formRef = useRef(null);
+
+  // Preenchido pelo preview de SEO (ou outra origem futura) — cada clique em
+  // "Corrigir" gera uma `key` nova mesmo que o texto seja o mesmo, senão o
+  // useEffect não dispara de novo pra um segundo clique idêntico.
+  useEffect(() => {
+    if (!prefill) return;
+    setSourceText(prefill.sourceText || '');
+    setTargetLang(prefill.targetLang || languages[0]?.code || '');
+    setOverrideText(prefill.overrideText || '');
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.key]);
 
   const languageLabel = (code) => languages.find((l) => l.code === code)?.label || code;
 
@@ -40,7 +54,7 @@ export default function TranslationOverrides({ overrides, languages, onAdd, onUp
 
   return (
     <Box display="flex" flexDirection="column" gap="4">
-      <Box display="flex" gap="3" flexWrap="wrap" alignItems="flex-end">
+      <Box ref={formRef} display="flex" gap="3" flexWrap="wrap" alignItems="flex-end">
         <Box display="flex" flexDirection="column" gap="1" minWidth="220px" flex="1">
           <Text>{t('translations.overrideSourceText')}</Text>
           <Input
