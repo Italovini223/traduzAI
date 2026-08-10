@@ -56,13 +56,18 @@ router.get('/sales', async (req, res, next) => {
       throw new AppError('Data inicial nao pode ser depois da data final.', 400, 'INVALID_RANGE');
     }
 
-    const [orders, config, rules] = await Promise.all([
+    const [orders, config, rules, visits] = await Promise.all([
       prisma.orderRecord.findMany({
         where: { storeId: req.store.id, paidAt: { gte: from, lte: to } },
         select: { country: true, amount: true, paidAt: true },
       }),
       prisma.storeTranslationConfig.findUnique({ where: { storeId: req.store.id } }),
       prisma.storeLocaleRule.findMany({ where: { storeId: req.store.id } }),
+      prisma.storeCountryVisit.groupBy({
+        by: ['country'],
+        where: { storeId: req.store.id, date: { gte: from, lte: to } },
+        _sum: { count: true },
+      }),
     ]);
 
     const byCountryMap = new Map();
@@ -114,9 +119,27 @@ router.get('/sales', async (req, res, next) => {
 
       translationImpact = { homeCountry: home?.code || null, ...impact };
 
-      opportunityCountries = byCountry
-        .filter((entry) => entry.country !== 'UNKNOWN' && entry.country !== home?.code && !ruleCountries.has(entry.country))
-        .map((entry) => ({ ...entry, label: COUNTRY_LABELS[entry.country] || entry.country }))
+      // Oportunidade = pais com acesso OU venda, sem regra configurada e que
+      // nao e a origem. Cruza vendas (byCountryMap) com acessos (visitMap) —
+      // um pais pode ter trafego real sem nenhuma venda ainda, e isso e
+      // exatamente o sinal mais forte de oportunidade perdida (visitante
+      // chegou, nao teve tradução, nao comprou).
+      const visitMap = new Map(visits.map((v) => [v.country, v._sum.count || 0]));
+      const candidateCountries = new Set([...byCountryMap.keys(), ...visitMap.keys()]);
+
+      opportunityCountries = Array.from(candidateCountries)
+        .filter((country) => country !== 'UNKNOWN' && country !== home?.code && !ruleCountries.has(country))
+        .map((country) => {
+          const saleEntry = byCountryMap.get(country);
+          return {
+            country,
+            label: COUNTRY_LABELS[country] || country,
+            salesCount: saleEntry?.salesCount || 0,
+            revenue: saleEntry?.revenue || 0,
+            visitCount: visitMap.get(country) || 0,
+          };
+        })
+        .sort((a, b) => b.revenue - a.revenue || b.visitCount - a.visitCount)
         .slice(0, 5);
     }
 

@@ -34,8 +34,12 @@ const GeoIPService = {
 
     let country = null;
     try {
+      // Timeout curto de proposito: se a API travar, cair pro geoip-lite
+      // instantaneo rapido importa mais pra latencia percebida do visitante
+      // do que esperar o maximo por uma resposta mais precisa que talvez nao
+      // venha (a maioria das respostas reais chega bem abaixo disso).
       const response = await axios.get(`https://ipapi.co/${ip}/json/`, {
-        timeout: 3000,
+        timeout: 1200,
         headers: { 'User-Agent': 'traduzAI-geoip/1.0' },
       });
       const code = response.data?.country_code;

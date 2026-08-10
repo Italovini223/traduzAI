@@ -265,9 +265,11 @@
     },
     "opportunities": {
       "title": "Oportunidades de tradução",
-      "description": "Países com vendas recentes que ainda não têm regra de idioma/moeda configurada.",
-      "empty": "Nenhuma oportunidade no momento — todos os países com vendas já têm tradução configurada.",
-      "configureButton": "Configurar"
+      "description": "Países com acessos ou vendas recentes que ainda não têm regra de idioma/moeda configurada.",
+      "empty": "Nenhuma oportunidade no momento — todos os países com acesso ou venda já têm tradução configurada.",
+      "configureButton": "Configurar",
+      "visits": "{{count}} acesso(s)",
+      "visitsOnly": "{{count}} acesso(s), sem vendas ainda"
     }
   },
   "settings": {

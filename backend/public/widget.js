@@ -804,6 +804,33 @@
     try { window.localStorage.setItem(STORAGE_KEY, code || HOME_SENTINEL); } catch (e) { /* ignore — modo privado/storage bloqueado */ }
   }
 
+  // ─── Cache de sessão da deteccao automatica (geoip) ───────────────────────
+  // Sem isso, cada pagina nova da MESMA visita refaz geoip + traducao do
+  // zero — perceptivel como demora em quem navega por varias paginas.
+  // sessionStorage (nao localStorage): expira ao fechar a aba, diferente da
+  // escolha manual que deve "colar" pra sempre — aqui e so uma otimizacao de
+  // latencia dentro da mesma visita, nao uma preferencia do comprador. TTL
+  // curto por cima do sessionStorage pra nao prender uma aba aberta por
+  // horas numa deteccao que a loja pode ter corrigido nesse meio tempo.
+  var AUTO_CONFIG_CACHE_KEY = 'traduzai_auto_config_cache';
+  var AUTO_CONFIG_CACHE_TTL_MS = 20 * 60 * 1000; // 20min
+
+  function getCachedAutoConfig() {
+    try {
+      var raw = window.sessionStorage.getItem(AUTO_CONFIG_CACHE_KEY);
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      if (!parsed || (Date.now() - parsed.savedAt) > AUTO_CONFIG_CACHE_TTL_MS) return null;
+      return parsed.config;
+    } catch (e) { return null; }
+  }
+
+  function setCachedAutoConfig(config) {
+    try {
+      window.sessionStorage.setItem(AUTO_CONFIG_CACHE_KEY, JSON.stringify({ config: config, savedAt: Date.now() }));
+    } catch (e) { /* ignore — modo privado/storage bloqueado */ }
+  }
+
   // ─── hreflang — sinaliza pro Google que existem variantes traduzidas ──────
   // Limitação real e aceita: a tradução é client-side (JS), não uma URL
   // servida diferente por idioma — não é o ideal (SSR por URL seria melhor,
@@ -993,8 +1020,17 @@
 
     if (effectiveInitial) return; // seletor já aplica a config pro país forçado/persistido
 
+    var cachedAutoConfig = getCachedAutoConfig();
+    if (cachedAutoConfig) {
+      AUTO_DETECTED_COUNTRY = (cachedAutoConfig.active && cachedAutoConfig.country) ? cachedAutoConfig.country : null;
+      if (PICKER_SET_ACTIVE) PICKER_SET_ACTIVE(AUTO_DETECTED_COUNTRY);
+      applyCountry(cachedAutoConfig);
+      return;
+    }
+
     fetchJson(API_ORIGIN + '/storefront/config?store=' + encodeURIComponent(STORE_ID))
       .then(function (config) {
+        setCachedAutoConfig(config);
         AUTO_DETECTED_COUNTRY = (config && config.active && config.country) ? config.country : null;
         if (PICKER_SET_ACTIVE) PICKER_SET_ACTIVE(AUTO_DETECTED_COUNTRY);
         applyCountry(config);

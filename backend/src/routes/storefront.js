@@ -18,6 +18,22 @@ const router = express.Router();
 
 const MAX_TEXTS_PER_REQUEST = 200;
 
+// Contagem agregada (sem IP nem dado pessoal) de acesso por pais/dia —
+// alimenta "oportunidades de traducao" no painel (pais com trafego real mas
+// sem regra ainda). Fire-and-forget: nunca faz o visitante esperar por isso
+// nem quebra a resposta se a gravacao falhar.
+function logCountryVisit(storeId, country) {
+  const date = new Date();
+  date.setUTCHours(0, 0, 0, 0);
+  prisma.storeCountryVisit
+    .upsert({
+      where: { storeId_country_date: { storeId, country, date } },
+      update: { count: { increment: 1 } },
+      create: { storeId, country, date, count: 1 },
+    })
+    .catch(() => { /* best-effort */ });
+}
+
 /**
  * GET /storefront/rules?store={nuvemshopId}
  * Lista os paises com regra de idioma/moeda configurada pelo lojista, para o
@@ -93,6 +109,7 @@ router.get('/config', async (req, res, next) => {
     // só quando a base local não reconhece o IP — nenhum dos dois resolve IP
     // privado/local (ex: dev em localhost), por isso o override abaixo existe
     // pra permitir testar o fluxo manualmente.
+    const isAutoDetected = !req.query.country;
     const country = req.query.country
       ? String(req.query.country).toUpperCase()
       : await GeoIPService.lookupCountry(req.ip);
@@ -100,6 +117,11 @@ router.get('/config', async (req, res, next) => {
     if (!country) {
       return res.json({ active: false });
     }
+
+    // So loga deteccao automatica (geoip) — ?country= manual e teste/dev ou
+    // clique num pais que ja tem regra (o seletor so lista paises
+    // configurados), nao ajuda a achar oportunidade nova.
+    if (isAutoDetected) logCountryVisit(store.id, country);
 
     const rule = await prisma.storeLocaleRule.findUnique({
       where: { storeId_country: { storeId: store.id, country } },

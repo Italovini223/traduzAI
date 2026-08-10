@@ -240,7 +240,12 @@ export default function Dashboard() {
                       <Box display="flex" flexDirection="column">
                         <Text fontWeight="bold">{o.label}</Text>
                         <Text fontSize="caption" color="neutral-textLow">
-                          {o.salesCount} {t('dashboard.salesMap.salesUnit')} · {formatValue(o.revenue)}
+                          {o.salesCount > 0
+                            ? `${o.salesCount} ${t('dashboard.salesMap.salesUnit')} · ${formatValue(o.revenue)}`
+                            : t('dashboard.opportunities.visitsOnly', { count: o.visitCount })}
+                          {o.salesCount > 0 && o.visitCount > 0
+                            ? ` · ${t('dashboard.opportunities.visits', { count: o.visitCount })}`
+                            : ''}
                         </Text>
                       </Box>
                       <Button appearance="neutral" onClick={() => navigate('/settings')}>

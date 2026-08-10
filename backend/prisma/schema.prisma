@@ -34,6 +34,7 @@ model Store {
   translationOverrides StoreTranslationOverride[]
   bannerOverrides   StoreBannerOverride[]
   countryGlossaryTerms StoreCountryGlossaryTerm[]
+  countryVisits     StoreCountryVisit[]
   @@map("stores")
 }
 
@@ -376,6 +377,22 @@ model IpGeoCache {
   country   String?
   fetchedAt DateTime @default(now())
   @@map("ip_geo_cache")
+}
+
+// Contagem agregada de acessos a vitrine por pais/dia — sem IP nem qualquer
+// dado pessoal, so o total do dia. Alimenta "oportunidades de traducao" no
+// painel (pais com trafego real mas sem regra configurada, mesmo sem venda
+// ainda). Gravado em GET /storefront/config quando o pais vem de deteccao
+// automatica (geoip), nunca de ?country= manual/teste.
+model StoreCountryVisit {
+  id      Int      @id @default(autoincrement())
+  storeId Int
+  store   Store    @relation(fields: [storeId], references: [id])
+  country String
+  date    DateTime
+  count   Int      @default(0)
+  @@unique([storeId, country, date])
+  @@map("store_country_visits")
 }
 
 // Pedidos pagos, gravados via webhook order/paid — fonte do mapa/gráfico de

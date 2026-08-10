@@ -261,9 +261,11 @@
     },
     "opportunities": {
       "title": "Oportunidades de traducci\u00f3n",
-      "description": "Pa\u00edses con ventas recientes que todav\u00eda no tienen regla de idioma/moneda configurada.",
-      "empty": "Ninguna oportunidad por ahora \u2014 todos los pa\u00edses con ventas ya tienen traducci\u00f3n configurada.",
-      "configureButton": "Configurar"
+      "description": "Pa\u00edses con accesos o ventas recientes que todav\u00eda no tienen regla de idioma/moneda configurada.",
+      "empty": "Ninguna oportunidad por ahora \u2014 todos los pa\u00edses con acceso o venta ya tienen traducci\u00f3n configurada.",
+      "configureButton": "Configurar",
+      "visits": "{{count}} acceso(s)",
+      "visitsOnly": "{{count}} acceso(s), sin ventas todav\u00eda"
     }
   },
   "settings": {
