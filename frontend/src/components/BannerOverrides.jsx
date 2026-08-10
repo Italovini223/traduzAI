@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Button, Select, Text, Alert, Tag } from '@nimbus-ds/components';
+import { Box, Button, Select, Text, Alert, Tag, Input } from '@nimbus-ds/components';
 
 const MAX_FILE_SIZE_BYTES = 4 * 1024 * 1024; // 4MB — margem segura sob o limite de 10mb do backend
 
@@ -20,6 +20,7 @@ export default function BannerOverrides({ overrides, languages, onDetect, onAdd,
   const [detectError, setDetectError] = useState(null);
 
   const [selectedOriginal, setSelectedOriginal] = useState(null);
+  const [manualUrl, setManualUrl] = useState('');
   const [targetLang, setTargetLang] = useState(languages[0]?.code || '');
   const [replacementImage, setReplacementImage] = useState(null);
   const [fileError, setFileError] = useState(null);
@@ -94,6 +95,25 @@ export default function BannerOverrides({ overrides, languages, onDetect, onAdd,
             <Text>{detectError}</Text>
           </Alert>
         )}
+
+        <Box display="flex" gap="2" flexWrap="wrap" alignItems="flex-end">
+          <Box display="flex" flexDirection="column" gap="1" minWidth="260px" flex="1">
+            <Text fontSize="caption" color="neutral-textLow">{t('translations.bannerManualUrlLabel')}</Text>
+            <Input
+              name="bannerManualUrl"
+              placeholder={t('translations.bannerManualUrlPlaceholder')}
+              value={manualUrl}
+              onChange={(e) => setManualUrl(e.target.value)}
+            />
+          </Box>
+          <Button
+            appearance="neutral"
+            disabled={!manualUrl.trim()}
+            onClick={() => { setSelectedOriginal(manualUrl.trim()); setManualUrl(''); }}
+          >
+            {t('translations.bannerManualUrlUse')}
+          </Button>
+        </Box>
 
         {candidates && candidates.length === 0 && (
           <Text color="neutral-textLow">{t('translations.noBannersDetected')}</Text>
