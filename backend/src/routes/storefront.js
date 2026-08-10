@@ -6,7 +6,7 @@ const { DeepLService } = require('../config/deepl');
 const { ExchangeRateService } = require('../config/exchangeRate');
 const { GeoIPService } = require('../config/geoip');
 const { VisionService } = require('../config/vision');
-const { isValidLanguage, isValidCountry, SUPPORTED_COUNTRIES, COUNTRY_DEFAULTS } = require('../lib/localeOptions');
+const { isValidLanguage, isValidCountry, COUNTRY_LABELS, findHomeCountry } = require('../lib/localeOptions');
 const { upsertTranslationOverride } = require('../lib/translationOverrides');
 const { translateTexts, sha256 } = require('../lib/translateText');
 
@@ -17,26 +17,6 @@ const router = express.Router();
 // identificada pelo nuvemshopId enviado como parametro, nao por sessao.
 
 const MAX_TEXTS_PER_REQUEST = 200;
-
-const COUNTRY_LABELS = SUPPORTED_COUNTRIES.reduce((acc, c) => {
-  acc[c.code] = c.label;
-  return acc;
-}, {});
-
-/**
- * Acha um pais cujo idioma+moeda padrao (COUNTRY_DEFAULTS) batam exatamente
- * com o idioma/moeda de origem configurados pelo lojista — usado so pra dar
- * uma bandeira "nativa" ao seletor do widget (best-effort, heuristico: nao
- * ha campo de pais de origem no schema, so idioma+moeda).
- */
-function findHomeCountry(sourceLanguage, baseCurrency) {
-  const code = Object.keys(COUNTRY_DEFAULTS).find((c) => {
-    const d = COUNTRY_DEFAULTS[c];
-    return d.language === sourceLanguage && d.currency === baseCurrency;
-  });
-  if (!code) return null;
-  return { code, name: COUNTRY_LABELS[code] || code, language: sourceLanguage, currency: baseCurrency };
-}
 
 /**
  * GET /storefront/rules?store={nuvemshopId}

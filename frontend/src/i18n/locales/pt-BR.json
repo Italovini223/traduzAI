@@ -253,6 +253,21 @@
       "sales": "Vendas",
       "revenue": "Faturamento",
       "empty": "Sem vendas registradas nesse período."
+    },
+    "translationImpact": {
+      "title": "Impacto da tradução",
+      "description": "Quanto do seu faturamento vem de países que você traduz, comparado com o país de origem da loja.",
+      "origin": "País de origem",
+      "translated": "Países traduzidos",
+      "other": "Outros países",
+      "noConfig": "Configure o idioma/moeda de origem em Configurações para ver essa métrica.",
+      "empty": "Sem vendas registradas nesse período pra calcular o impacto."
+    },
+    "opportunities": {
+      "title": "Oportunidades de tradução",
+      "description": "Países com vendas recentes que ainda não têm regra de idioma/moeda configurada.",
+      "empty": "Nenhuma oportunidade no momento — todos os países com vendas já têm tradução configurada.",
+      "configureButton": "Configurar"
     }
   },
   "settings": {

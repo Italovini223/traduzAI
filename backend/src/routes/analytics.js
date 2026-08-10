@@ -4,6 +4,7 @@ const { AppError } = require('../lib/errors');
 const { requireAuth } = require('../middleware/auth');
 const { ensureOrderPaidWebhook } = require('../config/nuvemshop');
 const { syncPaidOrders } = require('../lib/orderSync');
+const { findHomeCountry, COUNTRY_LABELS } = require('../lib/localeOptions');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -55,10 +56,14 @@ router.get('/sales', async (req, res, next) => {
       throw new AppError('Data inicial nao pode ser depois da data final.', 400, 'INVALID_RANGE');
     }
 
-    const orders = await prisma.orderRecord.findMany({
-      where: { storeId: req.store.id, paidAt: { gte: from, lte: to } },
-      select: { country: true, amount: true, paidAt: true },
-    });
+    const [orders, config, rules] = await Promise.all([
+      prisma.orderRecord.findMany({
+        where: { storeId: req.store.id, paidAt: { gte: from, lte: to } },
+        select: { country: true, amount: true, paidAt: true },
+      }),
+      prisma.storeTranslationConfig.findUnique({ where: { storeId: req.store.id } }),
+      prisma.storeLocaleRule.findMany({ where: { storeId: req.store.id } }),
+    ]);
 
     const byCountryMap = new Map();
     const byDayMap = new Map();
@@ -81,6 +86,40 @@ router.get('/sales', async (req, res, next) => {
     const byCountry = Array.from(byCountryMap.values()).sort((a, b) => b.revenue - a.revenue);
     const timeseries = Array.from(byDayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
+    // Impacto da traducao: separa o faturamento entre "origem" (pais de onde
+    // a loja fala nativamente, heuristica via idioma+moeda — ver
+    // findHomeCountry), "traduzido" (pais com regra de idioma/moeda
+    // cadastrada em Settings) e "outros" (venda de pais sem regra e que nao e
+    // a origem — candidato a nova regra, ver opportunityCountries abaixo).
+    // So calcula se a config existir; sem ela nao ha como saber o que e
+    // "origem" nem regra pra comparar.
+    let translationImpact = null;
+    let opportunityCountries = [];
+
+    if (config) {
+      const home = findHomeCountry(config.sourceLanguage, config.baseCurrency);
+      const ruleCountries = new Set(rules.map((r) => r.country));
+
+      const impact = {
+        origin: { salesCount: 0, revenue: 0 },
+        translated: { salesCount: 0, revenue: 0 },
+        other: { salesCount: 0, revenue: 0 },
+      };
+
+      byCountry.forEach((entry) => {
+        const bucket = entry.country === home?.code ? 'origin' : ruleCountries.has(entry.country) ? 'translated' : 'other';
+        impact[bucket].salesCount += entry.salesCount;
+        impact[bucket].revenue += entry.revenue;
+      });
+
+      translationImpact = { homeCountry: home?.code || null, ...impact };
+
+      opportunityCountries = byCountry
+        .filter((entry) => entry.country !== 'UNKNOWN' && entry.country !== home?.code && !ruleCountries.has(entry.country))
+        .map((entry) => ({ ...entry, label: COUNTRY_LABELS[entry.country] || entry.country }))
+        .slice(0, 5);
+    }
+
     res.json({
       from: from.toISOString(),
       to: to.toISOString(),
@@ -90,6 +129,8 @@ router.get('/sales', async (req, res, next) => {
       },
       byCountry,
       timeseries,
+      translationImpact,
+      opportunityCountries,
     });
   } catch (err) {
     next(err);

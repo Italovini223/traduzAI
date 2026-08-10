@@ -216,15 +216,38 @@ function getCountryDefaults(countryCode) {
   return COUNTRY_DEFAULTS[countryCode] || null;
 }
 
+const COUNTRY_LABELS = SUPPORTED_COUNTRIES.reduce((acc, c) => {
+  acc[c.code] = c.label;
+  return acc;
+}, {});
+
+/**
+ * Acha um pais cujo idioma+moeda padrao (COUNTRY_DEFAULTS) batam exatamente
+ * com o idioma/moeda de origem configurados pelo lojista — usado pra dar uma
+ * bandeira "nativa" ao seletor do widget e pra identificar o pais de origem
+ * nas metricas do painel (best-effort, heuristico: nao ha campo de pais de
+ * origem no schema, so idioma+moeda).
+ */
+function findHomeCountry(sourceLanguage, baseCurrency) {
+  const code = Object.keys(COUNTRY_DEFAULTS).find((c) => {
+    const d = COUNTRY_DEFAULTS[c];
+    return d.language === sourceLanguage && d.currency === baseCurrency;
+  });
+  if (!code) return null;
+  return { code, name: COUNTRY_LABELS[code] || code, language: sourceLanguage, currency: baseCurrency };
+}
+
 module.exports = {
   SUPPORTED_COUNTRIES,
   SUPPORTED_LANGUAGES,
   SUPPORTED_CURRENCIES,
   COUNTRY_DEFAULTS,
+  COUNTRY_LABELS,
   isValidCountry,
   isValidLanguage,
   isValidCurrency,
   isValidRule,
   getDeeplTarget,
   getCountryDefaults,
+  findHomeCountry,
 };

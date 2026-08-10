@@ -873,6 +873,15 @@
     'top-right': 'top:16px;right:16px;',
   };
 
+  // Ponte entre a deteccao automatica por geoip (init) e o seletor de
+  // bandeiras (buildCountryPicker) — os dois buscam dados em paralelo
+  // (/storefront/config e /storefront/rules), sem ordem garantida. Sem essa
+  // ponte, quando NAO ha selecao manual, a bandeira ativa fica sempre em
+  // "origem" mesmo com o conteudo ja traduzido pro pais detectado (bug real
+  // confirmado: geoip funcionando, bandeira nao acompanhava).
+  var PICKER_SET_ACTIVE = null; // setado por buildCountryPicker quando o seletor termina de montar
+  var AUTO_DETECTED_COUNTRY; // undefined = geoip ainda nao resolveu; null = resolveu sem pais; "US" etc = resolveu com pais
+
   function buildCountryPicker(countries, initialCode, home, appearance) {
     if ((!countries || countries.length === 0) && !home) return;
 
@@ -946,9 +955,16 @@
 
     document.body.appendChild(container);
     highlight(null);
+    PICKER_SET_ACTIVE = highlight;
 
     if (initialCode === HOME_SENTINEL) goHome();
     else if (initialCode) selectCountry(initialCode);
+    // Sem selecao manual/URL: se a deteccao automatica ja resolveu antes do
+    // seletor terminar de montar, aplica o destaque agora — senao fica preso
+    // em "origem" pra sempre nesse carregamento (so o init() chamaria depois
+    // e nao teria mais efeito, pois PICKER_SET_ACTIVE ainda seria null antes
+    // dessa linha rodar).
+    else if (AUTO_DETECTED_COUNTRY !== undefined) highlight(AUTO_DETECTED_COUNTRY);
   }
 
   function init() {
@@ -978,7 +994,11 @@
     if (effectiveInitial) return; // seletor já aplica a config pro país forçado/persistido
 
     fetchJson(API_ORIGIN + '/storefront/config?store=' + encodeURIComponent(STORE_ID))
-      .then(applyCountry)
+      .then(function (config) {
+        AUTO_DETECTED_COUNTRY = (config && config.active && config.country) ? config.country : null;
+        if (PICKER_SET_ACTIVE) PICKER_SET_ACTIVE(AUTO_DETECTED_COUNTRY);
+        applyCountry(config);
+      })
       .catch(function () { /* falha silenciosa */ });
   }
 

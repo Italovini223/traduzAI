@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { Box, Card, Text, Title, Spinner, Alert, Select, Button } from '@nimbus-ds/components';
 import { useNexo } from '../providers/NexoProvider.jsx';
 import api from '../services/api.js';
@@ -16,6 +17,7 @@ function defaultRange() {
 export default function Dashboard() {
   const { t } = useTranslation();
   const { store } = useNexo();
+  const navigate = useNavigate();
 
   const [range, setRange] = useState(defaultRange);
   const [metric, setMetric] = useState('revenue');
@@ -158,6 +160,100 @@ export default function Dashboard() {
           )}
         </Card.Body>
       </Card>
+
+      {sales && (
+        <Card>
+          <Card.Header>
+            <Title as="h3">{t('dashboard.translationImpact.title')}</Title>
+          </Card.Header>
+          <Card.Body>
+            <Box display="flex" flexDirection="column" gap="3">
+              <Text color="neutral-textLow">{t('dashboard.translationImpact.description')}</Text>
+
+              {!sales.translationImpact ? (
+                <Text color="neutral-textLow">{t('dashboard.translationImpact.noConfig')}</Text>
+              ) : (
+                (() => {
+                  const { origin, translated, other } = sales.translationImpact;
+                  const total = origin.revenue + translated.revenue + other.revenue;
+                  if (total === 0) {
+                    return <Text color="neutral-textLow">{t('dashboard.translationImpact.empty')}</Text>;
+                  }
+                  const pct = (value) => Math.round((value / total) * 100);
+                  const segments = [
+                    { key: 'origin', label: t('dashboard.translationImpact.origin'), value: origin.revenue, color: '#94a3b8' },
+                    { key: 'translated', label: t('dashboard.translationImpact.translated'), value: translated.revenue, color: '#16a34a' },
+                    { key: 'other', label: t('dashboard.translationImpact.other'), value: other.revenue, color: '#f59e0b' },
+                  ].filter((s) => s.value > 0);
+
+                  return (
+                    <Box display="flex" flexDirection="column" gap="3">
+                      <div style={{ display: 'flex', width: '100%', height: '16px', borderRadius: '8px', overflow: 'hidden' }}>
+                        {segments.map((s) => (
+                          <div key={s.key} title={s.label} style={{ width: pct(s.value) + '%', backgroundColor: s.color }} />
+                        ))}
+                      </div>
+                      <Box display="flex" gap="4" flexWrap="wrap">
+                        {segments.map((s) => (
+                          <Box key={s.key} display="flex" flexDirection="column" gap="1">
+                            <Box display="flex" gap="1" alignItems="center">
+                              <div style={{ width: '10px', height: '10px', borderRadius: '2px', backgroundColor: s.color }} />
+                              <Text fontSize="caption" color="neutral-textLow">{s.label}</Text>
+                            </Box>
+                            <Text fontWeight="bold">{formatValue(s.value)} ({pct(s.value)}%)</Text>
+                          </Box>
+                        ))}
+                      </Box>
+                    </Box>
+                  );
+                })()
+              )}
+            </Box>
+          </Card.Body>
+        </Card>
+      )}
+
+      {sales && (
+        <Card>
+          <Card.Header>
+            <Title as="h3">{t('dashboard.opportunities.title')}</Title>
+          </Card.Header>
+          <Card.Body>
+            <Box display="flex" flexDirection="column" gap="3">
+              <Text color="neutral-textLow">{t('dashboard.opportunities.description')}</Text>
+
+              {sales.opportunityCountries.length === 0 ? (
+                <Text color="neutral-textLow">{t('dashboard.opportunities.empty')}</Text>
+              ) : (
+                <Box display="flex" flexDirection="column" gap="2">
+                  {sales.opportunityCountries.map((o) => (
+                    <Box
+                      key={o.country}
+                      display="flex"
+                      gap="3"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      padding="2"
+                      borderBottom="1px solid"
+                      borderColor="neutral-surfaceHighlight"
+                    >
+                      <Box display="flex" flexDirection="column">
+                        <Text fontWeight="bold">{o.label}</Text>
+                        <Text fontSize="caption" color="neutral-textLow">
+                          {o.salesCount} {t('dashboard.salesMap.salesUnit')} · {formatValue(o.revenue)}
+                        </Text>
+                      </Box>
+                      <Button appearance="neutral" onClick={() => navigate('/settings')}>
+                        {t('dashboard.opportunities.configureButton')}
+                      </Button>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          </Card.Body>
+        </Card>
+      )}
     </Box>
   );
 }

@@ -249,6 +249,21 @@
       "sales": "Ventas",
       "revenue": "Facturaci\u00f3n",
       "empty": "Sin ventas registradas en ese per\u00edodo."
+    },
+    "translationImpact": {
+      "title": "Impacto de la traducci\u00f3n",
+      "description": "Cu\u00e1nto de tu facturaci\u00f3n viene de pa\u00edses que traduces, comparado con el pa\u00eds de origen de la tienda.",
+      "origin": "Pa\u00eds de origen",
+      "translated": "Pa\u00edses traducidos",
+      "other": "Otros pa\u00edses",
+      "noConfig": "Configura el idioma/moneda de origen en Configuraci\u00f3n para ver esta m\u00e9trica.",
+      "empty": "Sin ventas registradas en ese per\u00edodo para calcular el impacto."
+    },
+    "opportunities": {
+      "title": "Oportunidades de traducci\u00f3n",
+      "description": "Pa\u00edses con ventas recientes que todav\u00eda no tienen regla de idioma/moneda configurada.",
+      "empty": "Ninguna oportunidad por ahora \u2014 todos los pa\u00edses con ventas ya tienen traducci\u00f3n configurada.",
+      "configureButton": "Configurar"
     }
   },
   "settings": {
