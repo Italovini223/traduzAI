@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Button, Select, Text, Alert } from '@nimbus-ds/components';
+import { Box, Button, Select, Text, Alert, Tag } from '@nimbus-ds/components';
 
 const MAX_FILE_SIZE_BYTES = 4 * 1024 * 1024; // 4MB — margem segura sob o limite de 10mb do backend
 
@@ -26,6 +26,24 @@ export default function BannerOverrides({ overrides, languages, onDetect, onAdd,
   const [saving, setSaving] = useState(false);
 
   const languageLabel = (code) => languages.find((l) => l.code === code)?.label || code;
+
+  // Mapa url -> idiomas ja configurados pra essa imagem, pra dar feedback
+  // visual na grade de candidatos (sem isso, nao tinha como saber olhando a
+  // miniatura se aquele banner ja tinha substituto cadastrado pra algum
+  // idioma, so descobria rolando a lista de overrides abaixo).
+  const configuredLangsByUrl = useMemo(() => {
+    const map = new Map();
+    overrides.forEach((o) => {
+      const langs = map.get(o.originalImageUrl) || [];
+      langs.push(o.targetLang);
+      map.set(o.originalImageUrl, langs);
+    });
+    return map;
+  }, [overrides]);
+
+  const selectedAlreadyHasLang = selectedOriginal
+    ? (configuredLangsByUrl.get(selectedOriginal) || []).includes(targetLang)
+    : false;
 
   const handleDetect = async () => {
     setDetecting(true);
@@ -82,21 +100,32 @@ export default function BannerOverrides({ overrides, languages, onDetect, onAdd,
         )}
 
         {candidates && candidates.length > 0 && (
-          <Box display="flex" gap="2" flexWrap="wrap">
-            {candidates.map((url) => (
-              <img
-                key={url}
-                src={url}
-                alt=""
-                onClick={() => setSelectedOriginal(url)}
-                width="100"
-                height="70"
-                style={{
-                  ...thumbStyle,
-                  borderColor: selectedOriginal === url ? '#1a73e8' : 'transparent',
-                }}
-              />
-            ))}
+          <Box display="flex" gap="3" flexWrap="wrap">
+            {candidates.map((url) => {
+              const configuredLangs = configuredLangsByUrl.get(url) || [];
+              return (
+                <Box key={url} display="flex" flexDirection="column" gap="1" alignItems="center" style={{ maxWidth: '104px' }}>
+                  <img
+                    src={url}
+                    alt=""
+                    onClick={() => setSelectedOriginal(url)}
+                    width="100"
+                    height="70"
+                    style={{
+                      ...thumbStyle,
+                      borderColor: selectedOriginal === url ? '#1a73e8' : 'transparent',
+                    }}
+                  />
+                  {configuredLangs.length > 0 && (
+                    <Box display="flex" gap="1" flexWrap="wrap" justifyContent="center">
+                      {configuredLangs.map((lang) => (
+                        <Tag key={lang} appearance="success">{languageLabel(lang)}</Tag>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              );
+            })}
           </Box>
         )}
       </Box>
@@ -127,6 +156,11 @@ export default function BannerOverrides({ overrides, languages, onDetect, onAdd,
               {saving ? t('common.loading') : t('common.save')}
             </Button>
           </Box>
+          {selectedAlreadyHasLang && (
+            <Alert appearance="warning">
+              <Text>{t('translations.bannerAlreadyConfigured', { lang: languageLabel(targetLang) })}</Text>
+            </Alert>
+          )}
           {fileError && (
             <Alert appearance="danger">
               <Text>{fileError}</Text>

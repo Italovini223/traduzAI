@@ -102,9 +102,11 @@ function dedupeByLargestVariant(urls) {
   return [...groups.values()].map((g) => g.url);
 }
 
-function extractBannerCandidates(html, baseUrl) {
-  const urls = new Set();
-
+// So coleta os candidatos crus de UM html (sem dedupe/slice) — separado de
+// extractBannerCandidates() pra permitir juntar candidatos de MAIS de um
+// html (ex: variante desktop + mobile) antes do dedupe final, sem cortar
+// pelo limite duas vezes.
+function collectCandidateUrls(html, baseUrl, urls) {
   const tagRegex = /<(?:img|source)\b[^>]*>/gi;
   const tags = html.match(tagRegex) || [];
   tags.forEach((tag) => {
@@ -121,7 +123,11 @@ function extractBannerCandidates(html, baseUrl) {
   while ((bgMatch = bgRegex.exec(html))) {
     addCandidate(urls, bgMatch[2], baseUrl);
   }
+}
 
+function extractBannerCandidates(html, baseUrl) {
+  const urls = new Set();
+  collectCandidateUrls(html, baseUrl, urls);
   return dedupeByLargestVariant(urls).slice(0, MAX_BANNER_CANDIDATES);
 }
 
@@ -402,11 +408,33 @@ router.get('/detect-banners', async (req, res, next) => {
     }
 
     const baseUrl = `https://${store.domain}/`;
-    const html = await axios
-      .get(baseUrl, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0 (traduzAI banner detector)' } })
-      .then((r) => r.data);
+    // Alguns temas Nuvemshop servem banner diferente por User-Agent (a
+    // imagem mobile só aparece no HTML se o request "parecer" um celular) —
+    // uma única busca com UA desktop perdia esses banners (confirmado:
+    // lojista via banner mobile na loja de verdade, mas ele nunca aparecia
+    // aqui). Busca as duas variantes em paralelo e junta os candidatos antes
+    // do dedupe final, pra não cortar pelo limite duas vezes.
+    const [desktopHtml, mobileHtml] = await Promise.all([
+      axios
+        .get(baseUrl, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0 (traduzAI banner detector)' } })
+        .then((r) => r.data),
+      axios
+        .get(baseUrl, {
+          timeout: 15000,
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+          },
+        })
+        .then((r) => r.data)
+        .catch(() => ''), // best-effort: se a variante mobile falhar, ainda mostra os candidatos desktop
+    ]);
 
-    const images = extractBannerCandidates(html, baseUrl);
+    const urls = new Set();
+    collectCandidateUrls(desktopHtml, baseUrl, urls);
+    collectCandidateUrls(mobileHtml, baseUrl, urls);
+    const images = dedupeByLargestVariant(urls).slice(0, MAX_BANNER_CANDIDATES);
+
     res.json({ images });
   } catch (err) {
     next(err);

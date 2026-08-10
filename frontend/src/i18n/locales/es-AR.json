@@ -343,6 +343,7 @@
     "selectedBanner": "Banner seleccionado",
     "replacementImage": "Imagen sustituta (ya en el idioma de destino)",
     "bannerFileTooLarge": "Imagen demasiado grande (m\u00e1ximo 4MB).",
+    "bannerAlreadyConfigured": "Este banner ya tiene una imagen cargada para {{lang}} \u2014 guardar la va a reemplazar.",
     "noBannerOverrides": "Todav\u00eda no hay banners personalizados guardados.",
     "appearanceTitle": "Apariencia del selector de banderas",
     "appearanceDescription": "Posici\u00f3n y color de destaque del selector de pa\u00eds que se muestra en la tienda.",

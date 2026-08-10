@@ -347,6 +347,7 @@
     "selectedBanner": "Banner selecionado",
     "replacementImage": "Imagem substituta (já no idioma de destino)",
     "bannerFileTooLarge": "Imagem muito grande (máximo 4MB).",
+    "bannerAlreadyConfigured": "Esse banner já tem uma imagem cadastrada pra {{lang}} — salvar vai substituir.",
     "noBannerOverrides": "Nenhum banner personalizado cadastrado ainda.",
     "appearanceTitle": "Aparência do seletor de bandeiras",
     "appearanceDescription": "Posição e cor de destaque do seletor de país exibido na vitrine.",
