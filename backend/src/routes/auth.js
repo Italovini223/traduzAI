@@ -5,6 +5,7 @@ const { AppError } = require('../lib/errors');
 const { exchangeCodeForToken, fetchStoreInfo, ensureOrderPaidWebhook } = require('../config/nuvemshop');
 const { requireAuth } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimiter');
+const { isValidCurrency } = require('../lib/localeOptions');
 
 const router = express.Router();
 
@@ -73,12 +74,18 @@ router.get('/callback', authLimiter, async (req, res, next) => {
     // Script de traducao/conversao de moeda e auto-instalado pela Nuvemshop
     // (cadastrado no Partners Portal) — nao precisa de associacao manual por
     // loja. So garante que a config de traducao exista com a moeda padrao.
+    // A moeda que a Nuvemshop devolve pode nao estar na nossa lista suportada
+    // (isValidCurrency) — gravar sem validar aqui deixava a config presa num
+    // valor que o proprio PUT /config rejeitava depois, sem forma de salvar
+    // sem antes trocar pra outro valor e voltar (confirmado em loja real).
+    const detectedCurrency = storeInfo.currency || storeInfo.main_currency;
     await prisma.storeTranslationConfig.upsert({
       where: { storeId: store.id },
       update: {},
       create: {
         storeId: store.id,
-        baseCurrency: storeInfo.currency || storeInfo.main_currency || 'BRL',
+        sourceLanguage: 'pt-BR',
+        baseCurrency: isValidCurrency(detectedCurrency) ? detectedCurrency : 'BRL',
       },
     });
 

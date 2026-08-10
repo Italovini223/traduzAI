@@ -21,7 +21,9 @@ const {
 const router = express.Router();
 
 const MAX_OVERRIDE_TEXT_LENGTH = 2000;
-const MAX_BANNER_CANDIDATES = 24;
+const MAX_BANNER_CANDIDATES = 48;
+const MAX_PAGES_TO_CRAWL = 6; // home + ate 5 paginas de menu — cada uma é uma requisicao extra pro site do lojista
+const CRAWL_EXCLUDED_PATH_PATTERNS = /\/(carrinho|cart|checkout|login|conta|account|busca|search|wishlist|favoritos)(\/|$)/i;
 
 // Mesmo cálculo de hash usado em POST /storefront/translate — precisa bater
 // exatamente pra o lookup do override funcionar na vitrine.
@@ -123,6 +125,51 @@ function collectCandidateUrls(html, baseUrl, urls) {
   while ((bgMatch = bgRegex.exec(html))) {
     addCandidate(urls, bgMatch[2], baseUrl);
   }
+}
+
+// Acha links internos (mesmo dominio) na home pra rastrear alem dela —
+// banners de tema costumam existir em paginas de categoria/colecao, nao só
+// na home (confirmado: loja real com banner em quase toda pagina, deteccao
+// só olhando a home achava muito pouco). Sem parser de DOM, mesma abordagem
+// regex do resto do arquivo. Prioriza os primeiros links encontrados no HTML
+// (menu de navegacao normalmente fica no topo da pagina).
+// Loja com "protecao por senha" ativada (comum em loja ainda nao lancada)
+// redireciona qualquer URL publica pra uma tela de senha — sem isso
+// detectado, a busca via axios segue o redirect normalmente (200 OK) e
+// processa o HTML da TELA DE SENHA como se fosse a vitrine, achando zero
+// banner sem nenhuma explicacao pro lojista (confirmado em loja real).
+function isPasswordGateHtml(html) {
+  return /name=["']password["']/i.test(html || '');
+}
+
+function extractInternalLinks(html, baseUrl, limit) {
+  var hrefRegex = /<a\b[^>]*\bhref\s*=\s*["']([^"']+)["']/gi;
+  var hostname;
+  try { hostname = new URL(baseUrl).hostname; } catch { return []; }
+
+  var seen = new Set();
+  var links = [];
+  var match;
+  while ((match = hrefRegex.exec(html))) {
+    var raw = match[1];
+    if (!raw || raw.indexOf('#') === 0 || /^(mailto|tel|javascript):/i.test(raw)) continue;
+
+    var absolute;
+    try { absolute = new URL(raw, baseUrl).href; } catch { continue; }
+
+    var parsed;
+    try { parsed = new URL(absolute); } catch { continue; }
+    if (parsed.hostname !== hostname) continue;
+    if (CRAWL_EXCLUDED_PATH_PATTERNS.test(parsed.pathname)) continue;
+
+    var clean = parsed.origin + parsed.pathname;
+    if (clean === baseUrl || clean === baseUrl.replace(/\/$/, '')) continue;
+    if (seen.has(clean)) continue;
+    seen.add(clean);
+    links.push(clean);
+    if (links.length >= limit) break;
+  }
+  return links;
 }
 
 function extractBannerCandidates(html, baseUrl) {
@@ -408,6 +455,10 @@ router.get('/detect-banners', async (req, res, next) => {
     }
 
     const baseUrl = `https://${store.domain}/`;
+    const DESKTOP_UA = 'Mozilla/5.0 (traduzAI banner detector)';
+    const MOBILE_UA =
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+
     // Alguns temas Nuvemshop servem banner diferente por User-Agent (a
     // imagem mobile só aparece no HTML se o request "parecer" um celular) —
     // uma única busca com UA desktop perdia esses banners (confirmado:
@@ -415,24 +466,43 @@ router.get('/detect-banners', async (req, res, next) => {
     // aqui). Busca as duas variantes em paralelo e junta os candidatos antes
     // do dedupe final, pra não cortar pelo limite duas vezes.
     const [desktopHtml, mobileHtml] = await Promise.all([
+      axios.get(baseUrl, { timeout: 15000, headers: { 'User-Agent': DESKTOP_UA } }).then((r) => r.data),
       axios
-        .get(baseUrl, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0 (traduzAI banner detector)' } })
-        .then((r) => r.data),
-      axios
-        .get(baseUrl, {
-          timeout: 15000,
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-          },
-        })
+        .get(baseUrl, { timeout: 15000, headers: { 'User-Agent': MOBILE_UA } })
         .then((r) => r.data)
         .catch(() => ''), // best-effort: se a variante mobile falhar, ainda mostra os candidatos desktop
     ]);
 
+    if (isPasswordGateHtml(desktopHtml)) {
+      throw new AppError(
+        'Sua loja esta protegida por senha — desative a protecao (Configuracoes > Senha da loja, na Nuvemshop) pra detectar banners.',
+        400,
+        'STORE_PASSWORD_PROTECTED'
+      );
+    }
+
     const urls = new Set();
     collectCandidateUrls(desktopHtml, baseUrl, urls);
     collectCandidateUrls(mobileHtml, baseUrl, urls);
+
+    // Banner de tema normalmente existe em pagina de categoria/colecao
+    // tambem, nao só na home — confirmado em loja real com banner em quase
+    // toda pagina, onde a deteccao só-home achava muito pouco. Rastreia os
+    // primeiros links internos encontrados na home (menu de navegacao) e
+    // busca cada um tambem, best-effort (uma pagina que falhar nao impede as
+    // outras). Só UA desktop nessas extras — UA mobile em todas dobraria o
+    // numero de requisicoes pro site do lojista pra um ganho marginal.
+    const extraLinks = extractInternalLinks(desktopHtml, baseUrl, MAX_PAGES_TO_CRAWL - 1);
+    const extraHtmls = await Promise.all(
+      extraLinks.map((link) =>
+        axios
+          .get(link, { timeout: 15000, headers: { 'User-Agent': DESKTOP_UA } })
+          .then((r) => r.data)
+          .catch(() => '')
+      )
+    );
+    extraHtmls.forEach((html, i) => collectCandidateUrls(html, extraLinks[i], urls));
+
     const images = dedupeByLargestVariant(urls).slice(0, MAX_BANNER_CANDIDATES);
 
     res.json({ images });
@@ -653,6 +723,14 @@ router.get('/seo-preview', async (req, res, next) => {
     const html = await axios
       .get(baseUrl, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0 (traduzAI SEO preview)' } })
       .then((r) => r.data);
+
+    if (isPasswordGateHtml(html)) {
+      throw new AppError(
+        'Sua loja esta protegida por senha — desative a protecao (Configuracoes > Senha da loja, na Nuvemshop) pra ver o preview de SEO.',
+        400,
+        'STORE_PASSWORD_PROTECTED'
+      );
+    }
 
     const source = {
       title: extractTitle(html),
