@@ -313,13 +313,15 @@
       .catch(function () { /* falha silenciosa */ });
   }
 
-  // ─── Tradução de texto embutido em imagem (banner) — opt-in, feature com
-  // custo externo (Google Vision OCR no backend). Desenha um retângulo (cor
-  // aproximada do fundo, calculada no backend) + texto traduzido via
-  // <canvas>, troca img.src pelo resultado. Funciona bem em fundo de cor
-  // sólida; em foto complexa a sobreposição fica visível — limitação
-  // conhecida e aceita (ver CLAUDE.md).
-  var IMAGE_MIN_SIZE = 200; // ignora ícone/thumbnail pequeno
+  // ─── Banner personalizado por idioma (upload manual do lojista) ──────────
+  // Tradução automática de texto em imagem (OCR + overlay via canvas) foi
+  // removida — nenhum concorrente relevante do ecossistema Shopify faz isso
+  // de verdade (o mecanismo nativo de "media translation" é upload manual
+  // por idioma), e o caminho OCR tinha bugs estruturais sem solução boa:
+  // carrossel trocava a imagem antes da resposta do backend voltar, CDN sem
+  // CORS quebrava o canvas silenciosamente, e OCR+DeepL em série era lento.
+  // Ver CLAUDE.md. Fica só a troca direta por banner cadastrado manualmente
+  // (StoreBannerOverride) — sem OCR, sem canvas, sem esses problemas.
   var IMAGE_BATCH_SIZE = 15; // bate com MAX_IMAGES_PER_REQUEST do backend
 
   function withLoadedImage(img, cb) {
@@ -341,85 +343,6 @@
     setTimeout(function () { finish(img.complete && img.naturalWidth > 0); }, 2500);
   }
 
-  function textColorFor(bgColor) {
-    var m = /rgb\((\d+),(\d+),(\d+)\)/.exec(bgColor || '');
-    if (!m) return '#000000';
-    var luminance = (0.299 * Number(m[1]) + 0.587 * Number(m[2]) + 0.114 * Number(m[3])) / 255;
-    return luminance > 0.6 ? '#000000' : '#ffffff';
-  }
-
-  // Acha o maior tamanho de fonte que cabe em maxWidth sem estourar
-  // maxHeight — usar o parâmetro maxWidth do fillText em vez disso comprime
-  // a fonte horizontalmente (letras espremidas, ilegível — confirmado em
-  // teste real). Reduzir o tamanho da fonte preserva a proporção normal.
-  function fitFontSize(ctx, text, maxWidth, maxHeight) {
-    var size = Math.max(6, Math.floor(maxHeight));
-    ctx.font = size + 'px sans-serif';
-    while (size > 6 && ctx.measureText(text).width > maxWidth) {
-      size -= 1;
-      ctx.font = size + 'px sans-serif';
-    }
-    return size;
-  }
-
-  function drawOverlay(img, blocks, resolvedUrl) {
-    rememberOriginalAttr(img, 'src'); // registra o valor original do atributo pra restaurar depois
-    rememberOriginalAttr(img, 'srcset');
-    var loader = new Image();
-    loader.crossOrigin = 'anonymous';
-    loader.onload = function () {
-      try {
-        var canvas = document.createElement('canvas');
-        canvas.width = loader.naturalWidth;
-        canvas.height = loader.naturalHeight;
-        var ctx = canvas.getContext('2d');
-        ctx.drawImage(loader, 0, 0);
-
-        blocks.forEach(function (block) {
-          if (!block.translatedText || !block.rect || !block.imageWidth || !block.imageHeight) return;
-          var scaleX = loader.naturalWidth / block.imageWidth;
-          var scaleY = loader.naturalHeight / block.imageHeight;
-          var x = block.rect.x * scaleX;
-          var y = block.rect.y * scaleY;
-          var w = block.rect.width * scaleX;
-          var h = block.rect.height * scaleY;
-
-          // Margem extra — o bounding box do OCR às vezes fica um pouco menor
-          // que a extensão visual real do texto (confirmado em teste real:
-          // sem isso, sobra um resquício do texto original nas bordas).
-          var pad = Math.max(2, h * 0.15);
-          x -= pad; y -= pad; w += pad * 2; h += pad * 2;
-
-          ctx.fillStyle = block.bgColor || 'rgb(255,255,255)';
-          ctx.fillRect(x, y, w, h);
-
-          // translatedText normalmente é uma linha só (rect agora vem por
-          // parágrafo do Vision, não por bloco inteiro) — troca defensiva de
-          // quebra de linha por espaço cobre o caso raro de vir com \n.
-          var line = block.translatedText.replace(/\n/g, ' ');
-          ctx.fillStyle = textColorFor(block.bgColor);
-          ctx.textBaseline = 'middle';
-          ctx.textAlign = 'center';
-          var fontSize = fitFontSize(ctx, line, Math.max(1, w - 4), h * 0.85);
-          ctx.font = fontSize + 'px sans-serif';
-          ctx.fillText(line, x + w / 2, y + h / 2);
-        });
-
-        // toDataURL lança se o canvas "tainted" (CDN da imagem sem CORS) —
-        // nesse caso não dá pra exportar, deixa a imagem original mesmo.
-        img.setAttribute('src', canvas.toDataURL('image/png'));
-        // srcset tem prioridade sobre src na escolha de imagem do navegador
-        // quando os dois estão presentes — sem remover, o navegador continua
-        // renderindo a imagem original mesmo com o src trocado (confirmado
-        // em teste real: banner do tema usa srcset, overlay ficava sem
-        // nenhum efeito visual apesar do src ter sido trocado com sucesso).
-        img.removeAttribute('srcset');
-      } catch (e) { /* canvas tainted ou outro erro — mantém original */ }
-    };
-    loader.onerror = function () { /* falha ao (re)carregar — mantém original */ };
-    loader.src = resolvedUrl;
-  }
-
   // Usa a propriedade currentSrc/src (resolvida pelo navegador), nunca
   // getAttribute('src') — temas Nuvemshop servem banner com URL
   // protocol-relative ("//cdn.../img.webp") e/ou via srcset com um
@@ -429,8 +352,8 @@
   // — confirmado em teste real contra a loja de produção.
   //
   // Guarda a última URL "real" (não data:) vista pra cada <img> — depois que
-  // drawOverlay troca o src pelo data: URL do overlay, currentSrc passa a
-  // devolver ESSE data: URL; sem esse cache, toda re-tradução (ex.: troca de
+  // swapImage troca o src pelo data: URL do banner cadastrado, currentSrc
+  // passa a devolver ESSE data: URL; sem esse cache, toda re-tradução (ex.: troca de
   // país de novo) mandaria o data: URL pro backend (que falha, não é uma
   // imagem buscável) e o banner ficava travado pra sempre na 1ª tradução
   // aplicada, nunca acompanhando a troca de idioma (confirmado em teste
@@ -465,7 +388,6 @@
       body: JSON.stringify({
         store: STORE_ID,
         imageUrls: urls,
-        sourceLang: config.sourceLanguage,
         targetLang: config.targetLanguage,
       }),
     })
@@ -474,16 +396,12 @@
         var images = data.images || {};
         imgs.forEach(function (img, i) {
           var entry = images[urls[i]];
-          if (!entry) return;
+          if (!entry || !entry.replacementImage) return;
           // Carrossel pode já ter trocado essa imagem pra outra enquanto a
           // tradução ia e voltava do backend — sobrepor conteúdo de uma
           // imagem antiga na foto nova que está lá agora fica errado.
           if (resolveImageUrl(img) !== urls[i]) return;
-          if (entry.replacementImage) {
-            swapImage(img, entry.replacementImage);
-          } else if (entry.blocks && entry.blocks.length > 0) {
-            drawOverlay(img, entry.blocks, urls[i]);
-          }
+          swapImage(img, entry.replacementImage);
         });
       })
       .catch(function () { /* falha silenciosa */ });
@@ -521,11 +439,15 @@
         if (ok) loaded.push(img); else notReady.push(img);
         pending -= 1;
         if (pending === 0) {
-          var bigEnough = loaded.filter(function (im) {
-            return im.naturalWidth >= IMAGE_MIN_SIZE || im.naturalHeight >= IMAGE_MIN_SIZE;
-          });
-          for (var i = 0; i < bigEnough.length; i += IMAGE_BATCH_SIZE) {
-            requestImageTranslation(bigEnough.slice(i, i + IMAGE_BATCH_SIZE), config);
+          // Sem filtro de tamanho mínimo: a checagem agora é só um lookup de
+          // hash contra banner cadastrado manualmente (custo quase zero, sem
+          // API externa), diferente de quando existia OCR e valia a pena
+          // pular ícone/thumbnail pequeno pra economizar chamada da Vision.
+          // Um lojista pode ter cadastrado override pra um banner pequeno
+          // também — pular ele pelo tamanho bloquearia essa configuração sem
+          // motivo.
+          for (var i = 0; i < loaded.length; i += IMAGE_BATCH_SIZE) {
+            requestImageTranslation(loaded.slice(i, i + IMAGE_BATCH_SIZE), config);
           }
           if (notReady.length > 0 && retriesLeft > 0) {
             setTimeout(function () {
@@ -538,7 +460,6 @@
   }
 
   function translateImageText(root, config) {
-    if (!config.translateImages) return;
     var candidates = collectEligibleImages(root);
     processImages(candidates, config);
   }

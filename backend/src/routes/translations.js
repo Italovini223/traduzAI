@@ -230,7 +230,6 @@ router.get('/config', async (req, res, next) => {
         enabled: false,
         sourceLanguage: 'pt-BR',
         baseCurrency: 'BRL',
-        translateImages: false,
         pickerPosition: 'bottom-left',
         pickerColor: '#1a73e8',
       },
@@ -249,7 +248,7 @@ const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
 
 router.put('/config', async (req, res, next) => {
   try {
-    const { enabled, sourceLanguage, baseCurrency, translateImages, pickerPosition, pickerColor } = req.body;
+    const { enabled, sourceLanguage, baseCurrency, pickerPosition, pickerColor } = req.body;
 
     if (sourceLanguage !== undefined && !isValidLanguage(sourceLanguage)) {
       throw new AppError('Idioma de origem invalido.', 400, 'INVALID_LANGUAGE');
@@ -268,7 +267,6 @@ router.put('/config', async (req, res, next) => {
     if (enabled !== undefined) data.enabled = Boolean(enabled);
     if (sourceLanguage !== undefined) data.sourceLanguage = sourceLanguage;
     if (baseCurrency !== undefined) data.baseCurrency = baseCurrency;
-    if (translateImages !== undefined) data.translateImages = Boolean(translateImages);
     if (pickerPosition !== undefined) data.pickerPosition = pickerPosition;
     if (pickerColor !== undefined) data.pickerColor = pickerColor;
 

@@ -169,7 +169,6 @@ Partners Portal; pode remover do `.env` sem quebrar nada.
 | `TranslationCache` | **Global** (não por loja). `sourceHash` (sha256), `sourceLang`, `targetLang`, `translatedText` — sem expiração |
 | `ExchangeRate`    | **Global**. `baseCurrency`+`quoteCurrency` únicos, `rate`, `fetchedAt` — TTL de 12h no código, não no schema |
 | `OrderRecord`     | Por loja. Pedido pago gravado via webhook `order/paid` — `country`, `amount`, `currency`, `paidAt`. Unique em `[storeId, nuvemshopOrderId]` |
-| `ImageTextCache`  | **Global**. Blocos de texto de imagem detectados via OCR + traduzidos. Unique em `[imageUrlHash, targetLang]`, sem expiração |
 
 ### Campos de parceiro no `Store`
 
@@ -542,62 +541,34 @@ via query da tag `<script>` em modo auto-instalado.
   inserir avisos/textos customizados traduzidos nos slots fixos do NubeSDK,
   sem cobrir a tradução da página em si.
 
-### Tradução de texto embutido em imagem (banner) — feature opt-in
+### Tradução automática de texto em imagem (banner via OCR) — REMOVIDA (2026-08)
 
-Detecta e traduz texto que faz parte da IMAGEM (ex.: banner "Frete Grátis"
-como JPG/PNG), não capturável pelo TreeWalker de texto normal. Desligado por
-padrão (`StoreTranslationConfig.translateImages`) — usa API externa paga.
+Existiu uma feature opt-in de OCR (Google Cloud Vision, `DOCUMENT_TEXT_DETECTION`)
++ overlay via `<canvas>` pra traduzir texto embutido em banner automaticamente.
+Removida deliberadamente — motivos, em ordem de peso:
 
-**Arquitetura**: `config/vision.js` (Google Cloud Vision, `DOCUMENT_TEXT_DETECTION`)
-detecta blocos de texto + bounding box na imagem; `sharp` amostra a cor de
-fundo perto do bloco (aproximação, não é sampling perfeito); o texto do
-bloco passa pelo mesmo `DeepLService.translateBatch` já usado no resto do
-app (reaproveitado, não duplicado). Cache global `ImageTextCache` (por
-`sha256(imageUrl)` + `targetLang`, sem expiração — mesmo princípio do
-`TranslationCache`: imagem repetida nunca reprocessa, inclusive resultado
-"sem texto encontrado" fica cacheado, senão foto de produto sem texto
-nenhum reprocessaria a cada load de página, gastando API de graça).
+1. **Pesquisa de mercado**: nenhum concorrente relevante do ecossistema Shopify
+   (incluindo apps líderes como T Lab) faz OCR-automático de verdade — o
+   mecanismo nativo de "media translation" da própria Shopify é upload manual
+   de imagem por idioma/locale. Reimplementar OCR era resolver um problema
+   mais difícil que o mercado inteiro evita.
+2. **Bugs estruturais sem fix bom**: carrossel/slider trocava a imagem antes
+   da resposta do backend voltar (tradução descartada silenciosamente); CDN
+   sem `Access-Control-Allow-Origin` deixava o canvas "tainted" e
+   `toDataURL()` lançava, também engolido em silêncio; Vision+DeepL em série
+   por imagem (sem paralelismo) causava demora de 10-20s+ com várias imagens
+   sem cache.
+3. **Risco de escala**: quota do Google Vision é compartilhada entre TODAS as
+   lojas do app (uma API key só) — paralelizar por request pra resolver a
+   demora aumentaria risco de estourar quota global com múltiplas lojas
+   simultâneas, afetando lojas que nem geraram o pico.
 
-No navegador (`widget.js`): `<canvas>` desenha a imagem original + um
-retângulo (cor amostrada) cobrindo o texto original + o texto traduzido em
-cima, e troca `img.src` pelo `data:` URL resultante. Só processa imagem com
-`naturalWidth`/`naturalHeight` ≥ 200px (ignora ícone/thumbnail) e só depois
-de carregada (`img.complete`). Restauração ao voltar pro nativo reaproveita
-o mecanismo `ORIGINAL_ATTR`/`restoreOriginalAttrs()` já existente (trata
-`src` como qualquer outro atributo rastreado).
-
-**Limitação de qualidade aceita** (decisão consciente, não bug): funciona
-bem em banner de fundo de cor sólida. Em foto com fundo complexo/textura, o
-retângulo de cobertura fica visivelmente artificial — não há inpainting/IA
-generativa aqui, só cobrir+escrever. Aceito como troca deliberada por
-custo/complexidade (ver decisão registrada quando a feature foi proposta).
-
-**Risco real de CORS**: `canvas.toDataURL()` lança `SecurityError` se a
-imagem for carregada sem cabeçalho `Access-Control-Allow-Origin` (canvas
-"tainted"). Código trata isso com try/catch — se der erro, a imagem
-original é mantida sem overlay, silenciosamente. Não testado ainda contra
-o CDN real de imagens da Nuvemshop; se o overlay nunca aparecer em produção
-mesmo com blocos detectados, suspeitar disso primeiro.
-
-**Setup necessário** (ação do usuário, não código):
-1. Criar projeto no Google Cloud Console, habilitar "Cloud Vision API".
-2. Gerar uma API key (Credenciais → Criar credenciais → Chave de API).
-3. Configurar `GOOGLE_VISION_API_KEY` no Railway (backend).
-4. Tier grátis: ~1000 unidades de `DOCUMENT_TEXT_DETECTION`/mês; depois disso,
-   cobra por uso (consultar pricing atual do Google Cloud Vision antes de
-   habilitar em produção pra lojas com catálogo grande de imagens).
-5. Habilitar o toggle "Tradução de texto em imagens" na Settings do app —
-   sem isso, `/storefront/translate-image` sempre retorna `{ images: {} }`
-   (no-op), mesmo com a chave configurada.
-
-**⚠️ Pegadinha real que já aconteceu**: `sharp` (dependência de
-`config/vision.js`) na versão mais recente (`^0.34`) exige **Node ≥20.9** —
-o Railway desse projeto roda **Node 18.20.5**, e isso NÃO dá erro de install,
-só quebra no `require()` em runtime, **derrubando o backend inteiro** (não
-só essa feature) com 502 em produção. Fixado instalando `sharp@0.33.5`
-explicitamente (`engines: node ^18.17.0 || ^20.3.0 || >=21.0.0` — compatível).
-**Nunca rodar `npm update sharp` sem checar a versão do Node do Railway
-primeiro.**
+**O que ficou**: só a troca manual de banner (`StoreBannerOverride` — lojista
+sobe a imagem já traduzida por idioma, sem OCR/canvas). `config/vision.js`
+foi deletado, `StoreTranslationConfig.translateImages` e o model
+`ImageTextCache` foram removidos do schema (migração com
+`--accept-data-loss`, dados órfãos sem valor após a remoção). `GOOGLE_VISION_API_KEY`
+não é mais usada — pode ser removida do Railway quando conveniente.
 
 ---
 

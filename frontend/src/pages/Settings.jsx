@@ -25,7 +25,6 @@ export default function Settings() {
     enabled: false,
     sourceLanguage: 'pt-BR',
     baseCurrency: 'BRL',
-    translateImages: false,
     pickerPosition: 'bottom-left',
     pickerColor: '#1a73e8',
   });
@@ -40,7 +39,6 @@ export default function Settings() {
   const [loadingGlossary, setLoadingGlossary] = useState(true);
   const [savingToggle, setSavingToggle] = useState(false);
   const [savingSource, setSavingSource] = useState(false);
-  const [savingImages, setSavingImages] = useState(false);
   const [savingAppearance, setSavingAppearance] = useState(false);
   const [editModeCountry, setEditModeCountry] = useState('');
   const [openingEditMode, setOpeningEditMode] = useState(false);
@@ -97,7 +95,6 @@ export default function Settings() {
         enabled: false,
         sourceLanguage: 'pt-BR',
         baseCurrency: 'BRL',
-        translateImages: false,
         pickerPosition: 'bottom-left',
         pickerColor: '#1a73e8',
       };
@@ -122,20 +119,6 @@ export default function Settings() {
       setError(err.response?.data?.error || err.message);
     } finally {
       setSavingToggle(false);
-    }
-  };
-
-  const handleToggleImages = async () => {
-    setSavingImages(true);
-    setError(null);
-    try {
-      const res = await api.put('/api/translations/config', { translateImages: !config.translateImages });
-      setConfig(res.data.config);
-      setSavedConfig(res.data.config);
-    } catch (err) {
-      setError(err.response?.data?.error || err.message);
-    } finally {
-      setSavingImages(false);
     }
   };
 
@@ -389,18 +372,6 @@ export default function Settings() {
               disabled={savingToggle}
               onChange={handleToggleEnabled}
             />
-
-            <Box display="flex" flexDirection="column" gap="1">
-              <Toggle
-                name="translate-images"
-                label={config.translateImages ? t('translations.imagesOn') : t('translations.imagesOff')}
-                active={config.translateImages}
-                checked={config.translateImages}
-                disabled={savingImages}
-                onChange={handleToggleImages}
-              />
-              <Text fontSize="caption" color="neutral-textLow">{t('translations.imagesHint')}</Text>
-            </Box>
           </Box>
         </Card.Body>
       </Card>

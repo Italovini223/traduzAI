@@ -263,7 +263,6 @@ model StoreTranslationConfig {
   enabled        Boolean  @default(false)
   sourceLanguage String   @default("pt-BR") // idioma original do conteúdo da loja
   baseCurrency   String   @default("BRL") // moeda original dos preços
-  translateImages Boolean @default(false) // opt-in — chama Google Vision (custo externo)
   pickerPosition String   @default("bottom-left") // posição do seletor de bandeiras na vitrine
   pickerColor    String   @default("#1a73e8") // cor de destaque do seletor de bandeiras
   scriptId       String?  // id retornado pela Nuvemshop Script API
@@ -413,17 +412,3 @@ model OrderRecord {
   @@map("order_records")
 }
 
-// Cache global (como TranslationCache) de blocos de texto detectados por OCR
-// numa imagem + tradução — evita rechamar a Vision API pra imagem repetida
-// (mesmo banner aparece em várias páginas/lojas). blocks é o array retornado
-// por VisionService.detectTextBlocks() + translatedText por bloco.
-model ImageTextCache {
-  id           Int      @id @default(autoincrement())
-  imageUrlHash String   // sha256(imageUrl)
-  targetLang   String
-  blocks       Json     // [{ text, translatedText, rect:{x,y,width,height}, imageWidth, imageHeight, bgColor }]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  @@unique([imageUrlHash, targetLang])
-  @@map("image_text_cache")
-}

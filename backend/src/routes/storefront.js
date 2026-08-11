@@ -2,10 +2,8 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
 const { AppError } = require('../lib/errors');
-const { DeepLService } = require('../config/deepl');
 const { ExchangeRateService } = require('../config/exchangeRate');
 const { GeoIPService } = require('../config/geoip');
-const { VisionService } = require('../config/vision');
 const { isValidLanguage, isValidCountry, COUNTRY_LABELS, findHomeCountry } = require('../lib/localeOptions');
 const { upsertTranslationOverride } = require('../lib/translationOverrides');
 const { translateTexts, sha256 } = require('../lib/translateText');
@@ -206,16 +204,20 @@ const MAX_IMAGES_PER_REQUEST = 15;
 
 /**
  * POST /storefront/translate-image
- * body: { store, imageUrls: [...], sourceLang, targetLang }
- * Detecta texto embutido em imagem (OCR via Google Vision) + traduz, com
- * cache (ImageTextCache) — so chama a API externa pra imagem/idioma que
- * ainda nao foi processado (inclusive "sem texto encontrado" fica em cache,
- * pra nao reprocessar foto de produto sem texto a cada load de pagina).
- * Feature opt-in: so roda se translateImages estiver habilitado na loja.
+ * body: { store, imageUrls: [...], targetLang }
+ * Devolve o banner personalizado (upload manual do lojista, StoreBannerOverride)
+ * pra cada imagem que tiver um substituto cadastrado nesse idioma. Tradução
+ * automática de texto em imagem (OCR) foi removida — nenhum concorrente
+ * relevante do ecossistema Shopify oferece isso de verdade (pesquisado: o
+ * mecanismo nativo de "media translation" é upload manual por idioma), e o
+ * caminho OCR tinha bugs estruturais (carrossel troca imagem antes da
+ * resposta voltar, CORS de CDN quebra o canvas, latência alta com Vision+DeepL
+ * em série) que não valiam a pena resolver pra reimplementar algo que o
+ * mercado já não faz. Ver CLAUDE.md.
  */
 router.post('/translate-image', async (req, res, next) => {
   try {
-    const { store: nuvemshopId, imageUrls, sourceLang, targetLang } = req.body;
+    const { store: nuvemshopId, imageUrls, targetLang } = req.body;
 
     if (!nuvemshopId) {
       throw new AppError('Parametro store obrigatorio.', 400, 'MISSING_STORE');
@@ -242,77 +244,16 @@ router.post('/translate-image', async (req, res, next) => {
     const safeUrls = imageUrls.map((u) => String(u).slice(0, 2000));
     const hashes = safeUrls.map(sha256);
 
-    // Banner personalizado (upload manual do lojista) tem prioridade e não
-    // depende do toggle de tradução automática — sem custo de Vision, é uma
-    // imagem de verdade em vez de overlay de canvas em cima da original.
     const bannerOverrides = await prisma.storeBannerOverride.findMany({
       where: { storeId: store.id, originalImageHash: { in: hashes }, targetLang },
     });
     const bannerMap = new Map(bannerOverrides.map((b) => [b.originalImageHash, b.replacementImage]));
 
     const images = {};
-    const pendingUrls = [];
-    const pendingHashes = [];
     safeUrls.forEach((url, i) => {
-      const hash = hashes[i];
-      if (bannerMap.has(hash)) {
-        images[url] = { blocks: [], replacementImage: bannerMap.get(hash) };
-      } else {
-        pendingUrls.push(url);
-        pendingHashes.push(hash);
-      }
+      const replacement = bannerMap.get(hashes[i]);
+      if (replacement) images[url] = { replacementImage: replacement };
     });
-
-    if (!store.translationConfig?.translateImages || pendingUrls.length === 0) {
-      return res.json({ images });
-    }
-
-    const cached = await prisma.imageTextCache.findMany({
-      where: { imageUrlHash: { in: pendingHashes }, targetLang },
-    });
-    const cacheMap = new Map(cached.map((c) => [c.imageUrlHash, c.blocks]));
-
-    const toProcess = [];
-    pendingUrls.forEach((url, i) => {
-      const hash = pendingHashes[i];
-      if (cacheMap.has(hash)) {
-        images[url] = { blocks: cacheMap.get(hash) };
-      } else {
-        toProcess.push({ url, hash });
-      }
-    });
-
-    for (const { url, hash } of toProcess) {
-      // detectTextBlocks lanca em erro real (rede/API) — so cacheia quando
-      // a chamada teve SUCESSO (inclusive "sem texto encontrado", que e um
-      // resultado valido). Erro transitorio nunca deve virar cache
-      // permanente de "sem texto" — ja aconteceu de verdade, ver vision.js.
-      let detected;
-      try {
-        detected = await VisionService.detectTextBlocks(url);
-      } catch (err) {
-        console.error('[storefront] detectTextBlocks falhou pra', url, '-', err.message);
-        images[url] = { blocks: [] };
-        continue;
-      }
-
-      let blocksWithTranslation = [];
-      if (detected.length > 0) {
-        const texts = detected.map((b) => b.text);
-        const translations = await DeepLService.translateBatch(texts, targetLang, sourceLang);
-        blocksWithTranslation = detected.map((b, i) => ({ ...b, translatedText: translations[i] || b.text }));
-      }
-
-      images[url] = { blocks: blocksWithTranslation };
-
-      try {
-        await prisma.imageTextCache.upsert({
-          where: { imageUrlHash_targetLang: { imageUrlHash: hash, targetLang } },
-          update: { blocks: blocksWithTranslation },
-          create: { imageUrlHash: hash, targetLang, blocks: blocksWithTranslation },
-        });
-      } catch { /* cache best-effort — nao impede a resposta */ }
-    }
 
     res.json({ images });
   } catch (err) {
