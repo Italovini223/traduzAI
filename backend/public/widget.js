@@ -43,6 +43,48 @@
   var SKIP_TAGS = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEXTAREA: 1, INPUT: 1 };
   var TEXT_BATCH_SIZE = 100;
 
+  // ─── Indicador visual de "traduzindo" ─────────────────────────────────────
+  // Sem isso, o comprador via o texto mudar de idioma "do nada" alguns
+  // segundos depois do carregamento, sem nenhum sinal de que algo estava
+  // acontecendo — sensação de app lento/quebrado. Contador global de
+  // requisições em voo (config/rules/texto/imagem); um pequeno spinner
+  // aparece junto do seletor de bandeiras enquanto o contador > 0.
+  var PENDING_COUNT = 0;
+  var PICKER_SPINNER_EL = null;
+
+  function updatePendingIndicator() {
+    if (PICKER_SPINNER_EL) PICKER_SPINNER_EL.style.display = PENDING_COUNT > 0 ? 'inline-block' : 'none';
+  }
+
+  function incPending() {
+    PENDING_COUNT += 1;
+    updatePendingIndicator();
+  }
+
+  function decPending() {
+    PENDING_COUNT = Math.max(0, PENDING_COUNT - 1);
+    updatePendingIndicator();
+  }
+
+  function ensureSpinnerStyle() {
+    if (document.getElementById('traduzai-spinner-style')) return;
+    var style = document.createElement('style');
+    style.id = 'traduzai-spinner-style';
+    style.textContent = '@keyframes traduzai-spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(style);
+  }
+
+  function makeSpinner() {
+    ensureSpinnerStyle();
+    var el = document.createElement('div');
+    el.title = 'Traduzindo...';
+    el.setAttribute('data-notranslate', '');
+    el.style.cssText = 'display:none;width:14px;height:14px;flex:none;' +
+      'border:2px solid rgba(0,0,0,.15);border-top-color:#555;border-radius:50%;' +
+      'animation:traduzai-spin .6s linear infinite;';
+    return el;
+  }
+
   // ─── Detecção/conversão de preço por regex ───────────────────────────────
   var CURRENCY_SYMBOLS = {
     'R$': 'BRL', 'US$': 'USD', 'U$S': 'USD', '$': 'USD',
@@ -221,6 +263,7 @@
     var texts = items.map(function (item) { return rememberOriginalAttr(item.el, item.attr); });
     if (texts.length === 0) return;
 
+    incPending();
     fetch(API_ORIGIN + '/storefront/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -243,7 +286,8 @@
           item.el.setAttribute(item.attr, translated);
         });
       })
-      .catch(function () { /* falha silenciosa */ });
+      .catch(function () { /* falha silenciosa */ })
+      .then(decPending, decPending);
   }
 
   // ─── SEO: <title> e meta tags — ficam no <head>, fora da árvore de texto
@@ -290,6 +334,7 @@
     var texts = items.map(rememberHeadOriginal);
     if (texts.length === 0) return;
 
+    incPending();
     fetch(API_ORIGIN + '/storefront/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -310,7 +355,8 @@
           else item.el.setAttribute(item.attr, translated);
         });
       })
-      .catch(function () { /* falha silenciosa */ });
+      .catch(function () { /* falha silenciosa */ })
+      .then(decPending, decPending);
   }
 
   // ─── Banner personalizado por idioma (upload manual do lojista) ──────────
@@ -382,6 +428,7 @@
 
   function requestImageTranslation(imgs, config) {
     var urls = imgs.map(resolveImageUrl);
+    incPending();
     fetch(API_ORIGIN + '/storefront/translate-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -404,7 +451,8 @@
           swapImage(img, entry.replacementImage);
         });
       })
-      .catch(function () { /* falha silenciosa */ });
+      .catch(function () { /* falha silenciosa */ })
+      .then(decPending, decPending);
   }
 
   function collectEligibleImages(root) {
@@ -469,6 +517,7 @@
     var texts = nodes.map(rememberOriginal);
     if (texts.length === 0) return;
 
+    incPending();
     fetch(API_ORIGIN + '/storefront/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -491,7 +540,8 @@
           node.nodeValue = translated;
         });
       })
-      .catch(function () { /* falha silenciosa — nunca quebra a vitrine */ });
+      .catch(function () { /* falha silenciosa — nunca quebra a vitrine */ })
+      .then(decPending, decPending);
   }
 
   function translateVisibleNodes(config) {
@@ -790,24 +840,17 @@
     });
   }
 
-  // ─── Seletor manual de país (bandeiras) — fallback do geoip por IP ────────
-  function makeFlagButton(code, title) {
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.title = title;
-    btn.style.cssText = 'border:2px solid transparent;border-radius:4px;padding:0;' +
-      'width:28px;height:20px;cursor:pointer;background:none;overflow:hidden;';
-
+  // ─── Seletor manual de país (dropdown) — fallback do geoip por IP ─────────
+  function makeFlagImg(code) {
     var img = document.createElement('img');
     img.src = 'https://flagcdn.com/28x21/' + code.toLowerCase() + '.png';
     img.alt = code;
-    img.style.cssText = 'width:100%;height:100%;display:block;';
-    btn.appendChild(img);
-    return btn;
+    img.style.cssText = 'width:20px;height:15px;display:block;border-radius:2px;flex:none;';
+    return img;
   }
 
-  // Converte "#1a73e8" -> "rgba(26,115,232,ALPHA)" pro halo de destaque —
-  // não dá pra usar a cor sólida direto no box-shadow difuso.
+  // Converte "#1a73e8" -> "rgba(26,115,232,ALPHA)" pro fundo de destaque —
+  // não dá pra usar a cor sólida direto no highlight da linha ativa.
   function hexToRgba(hex, alpha) {
     var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
     if (!m) return 'rgba(26,115,232,' + alpha + ')';
@@ -834,36 +877,74 @@
     if ((!countries || countries.length === 0) && !home) return;
 
     var color = (appearance && appearance.color) || '#1a73e8';
-    var positionCss = PICKER_POSITION_CSS[(appearance && appearance.position)] || PICKER_POSITION_CSS['bottom-left'];
+    var positionKey = (appearance && appearance.position) || 'bottom-left';
+    var positionCss = PICKER_POSITION_CSS[positionKey] || PICKER_POSITION_CSS['bottom-left'];
+    var opensDown = positionKey.indexOf('top') === 0; // painel abre pro lado livre da tela
 
     var activeCode = null; // null = idioma/moeda de origem (home) em exibição
-    var buttons = {};
-    var homeBtn = null;
+    var rows = {}; // '__home__' | code -> { row, code, flagCode }
+    var isOpen = false;
 
     var container = document.createElement('div');
     container.setAttribute('data-notranslate', '');
-    container.style.cssText = 'position:fixed;' + positionCss + 'z-index:2147483000;' +
-      'display:flex;gap:6px;background:#fff;padding:6px;border-radius:8px;' +
-      'box-shadow:0 2px 8px rgba(0,0,0,.2);font-family:sans-serif;';
+    container.style.cssText = 'position:fixed;' + positionCss + 'z-index:2147483000;font-family:sans-serif;';
 
-    function setActiveStyle(btn, isActive) {
-      btn.style.borderColor = isActive ? color : 'transparent';
-      btn.style.boxShadow = isActive ? '0 0 0 2px ' + hexToRgba(color, 0.35) : 'none';
-      btn.style.opacity = isActive ? '1' : '0.6';
+    var trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.style.cssText = 'display:flex;align-items:center;gap:6px;background:#fff;border:none;' +
+      'padding:6px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.2);cursor:pointer;';
+
+    var triggerFlag = makeFlagImg('un'); // placeholder até highlight() setar a bandeira real
+    trigger.appendChild(triggerFlag);
+
+    var chevron = document.createElement('span');
+    chevron.textContent = '▾';
+    chevron.style.cssText = 'font-size:10px;color:#666;line-height:1;transition:transform .15s;flex:none;';
+    trigger.appendChild(chevron);
+
+    PICKER_SPINNER_EL = makeSpinner();
+    trigger.appendChild(PICKER_SPINNER_EL);
+    updatePendingIndicator(); // sincroniza com PENDING_COUNT ja acumulado antes do seletor terminar de montar
+
+    var panel = document.createElement('div');
+    panel.style.cssText = 'position:absolute;' + (opensDown ? 'top:calc(100% + 6px);' : 'bottom:calc(100% + 6px);') +
+      (positionKey.indexOf('right') !== -1 ? 'right:0;' : 'left:0;') +
+      'display:none;flex-direction:column;background:#fff;border-radius:8px;' +
+      'box-shadow:0 4px 16px rgba(0,0,0,.25);min-width:170px;max-height:260px;overflow-y:auto;padding:4px;';
+
+    function setOpen(open) {
+      isOpen = open;
+      panel.style.display = open ? 'flex' : 'none';
+      chevron.style.transform = open ? 'rotate(180deg)' : 'none';
+    }
+
+    trigger.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      setOpen(!isOpen);
+    });
+    document.addEventListener('click', function () {
+      if (isOpen) setOpen(false);
+    });
+
+    function setRowActiveStyles() {
+      Object.keys(rows).forEach(function (key) {
+        var entry = rows[key];
+        entry.row.style.background = entry.code === activeCode ? hexToRgba(color, 0.12) : 'none';
+      });
     }
 
     function highlight(code) {
       activeCode = code;
-      if (homeBtn) setActiveStyle(homeBtn, code === null);
-      Object.keys(buttons).forEach(function (key) {
-        setActiveStyle(buttons[key], key === code);
-      });
+      var entry = rows[code === null ? '__home__' : code];
+      if (entry) triggerFlag.src = 'https://flagcdn.com/28x21/' + entry.flagCode.toLowerCase() + '.png';
+      setRowActiveStyles();
     }
 
     function goHome() {
       persistCountry(null);
       highlight(null);
       applyCountry({ active: false });
+      setOpen(false);
     }
 
     function selectCountry(code) {
@@ -871,36 +952,55 @@
         goHome();
         return;
       }
+      incPending();
       fetchJson(API_ORIGIN + '/storefront/config?store=' + encodeURIComponent(STORE_ID) + '&country=' + encodeURIComponent(code))
         .then(function (config) {
           persistCountry(code);
           highlight(code);
           applyCountry(config);
         })
-        .catch(function () { /* falha silenciosa */ });
+        .catch(function () { /* falha silenciosa */ })
+        .then(decPending, decPending);
+      setOpen(false);
+    }
+
+    function makeRow(key, flagCode, label) {
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.title = label;
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;width:100%;border:none;' +
+        'background:none;padding:6px 8px;border-radius:6px;cursor:pointer;text-align:left;' +
+        'font-size:13px;color:#222;white-space:nowrap;';
+      row.appendChild(makeFlagImg(flagCode));
+      var text = document.createElement('span');
+      text.textContent = label;
+      text.style.cssText = 'overflow:hidden;text-overflow:ellipsis;';
+      row.appendChild(text);
+      row.addEventListener('mouseenter', function () { row.style.background = hexToRgba(color, rows[key].code === activeCode ? 0.12 : 0.06); });
+      row.addEventListener('mouseleave', function () { row.style.background = rows[key].code === activeCode ? hexToRgba(color, 0.12) : 'none'; });
+      panel.appendChild(row);
+      return row;
     }
 
     if (home) {
-      homeBtn = makeFlagButton(home.code, home.name + ' (idioma original da loja)');
-      homeBtn.addEventListener('click', goHome);
-      container.appendChild(homeBtn);
-
-      if (countries && countries.length > 0) {
-        var separator = document.createElement('div');
-        separator.style.cssText = 'width:1px;align-self:stretch;background:#ddd;margin:2px 1px;';
-        container.appendChild(separator);
-      }
+      var homeRow = makeRow('__home__', home.code, home.name + ' (idioma original da loja)');
+      homeRow.addEventListener('click', goHome);
+      rows['__home__'] = { row: homeRow, code: null, flagCode: home.code };
+      triggerFlag.src = 'https://flagcdn.com/28x21/' + home.code.toLowerCase() + '.png';
+    } else if (countries.length > 0) {
+      triggerFlag.src = 'https://flagcdn.com/28x21/' + countries[0].code.toLowerCase() + '.png';
     }
 
     countries.forEach(function (c) {
-      var btn = makeFlagButton(c.code, c.name);
-      btn.addEventListener('click', function () {
+      var row = makeRow(c.code, c.code, c.name);
+      row.addEventListener('click', function () {
         selectCountry(c.code === activeCode ? null : c.code);
       });
-      buttons[c.code] = btn;
-      container.appendChild(btn);
+      rows[c.code] = { row: row, code: c.code, flagCode: c.code };
     });
 
+    container.appendChild(trigger);
+    container.appendChild(panel);
     document.body.appendChild(container);
     highlight(null);
     PICKER_SET_ACTIVE = highlight;
@@ -949,6 +1049,7 @@
       return;
     }
 
+    incPending();
     fetchJson(API_ORIGIN + '/storefront/config?store=' + encodeURIComponent(STORE_ID))
       .then(function (config) {
         setCachedAutoConfig(config);
@@ -956,7 +1057,8 @@
         if (PICKER_SET_ACTIVE) PICKER_SET_ACTIVE(AUTO_DETECTED_COUNTRY);
         applyCountry(config);
       })
-      .catch(function () { /* falha silenciosa */ });
+      .catch(function () { /* falha silenciosa */ })
+      .then(decPending, decPending);
   }
 
   if (document.readyState === 'loading') {
