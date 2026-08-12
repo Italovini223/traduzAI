@@ -232,6 +232,9 @@ router.get('/config', async (req, res, next) => {
         baseCurrency: 'BRL',
         pickerPosition: 'bottom-left',
         pickerColor: '#1a73e8',
+        pickerSize: 'medium',
+        pickerBgColor: '#ffffff',
+        pickerBorderRadius: 8,
       },
       rules,
     });
@@ -244,11 +247,15 @@ router.get('/config', async (req, res, next) => {
  * PUT /api/translations/config — atualiza enabled/sourceLanguage/baseCurrency.
  */
 const VALID_PICKER_POSITIONS = new Set(['bottom-left', 'bottom-right', 'top-left', 'top-right']);
+const VALID_PICKER_SIZES = new Set(['small', 'medium', 'large']);
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
 
 router.put('/config', async (req, res, next) => {
   try {
-    const { enabled, sourceLanguage, baseCurrency, pickerPosition, pickerColor } = req.body;
+    const {
+      enabled, sourceLanguage, baseCurrency,
+      pickerPosition, pickerColor, pickerSize, pickerBgColor, pickerBorderRadius,
+    } = req.body;
 
     if (sourceLanguage !== undefined && !isValidLanguage(sourceLanguage)) {
       throw new AppError('Idioma de origem invalido.', 400, 'INVALID_LANGUAGE');
@@ -262,6 +269,15 @@ router.put('/config', async (req, res, next) => {
     if (pickerColor !== undefined && !HEX_COLOR_REGEX.test(pickerColor)) {
       throw new AppError('Cor do seletor invalida (use #rrggbb).', 400, 'INVALID_PICKER_COLOR');
     }
+    if (pickerSize !== undefined && !VALID_PICKER_SIZES.has(pickerSize)) {
+      throw new AppError('Tamanho do seletor invalido.', 400, 'INVALID_PICKER_SIZE');
+    }
+    if (pickerBgColor !== undefined && !HEX_COLOR_REGEX.test(pickerBgColor)) {
+      throw new AppError('Cor de fundo do seletor invalida (use #rrggbb).', 400, 'INVALID_PICKER_BG_COLOR');
+    }
+    if (pickerBorderRadius !== undefined && !(Number.isInteger(pickerBorderRadius) && pickerBorderRadius >= 0 && pickerBorderRadius <= 24)) {
+      throw new AppError('Arredondamento do seletor invalido (use 0 a 24).', 400, 'INVALID_PICKER_BORDER_RADIUS');
+    }
 
     const data = {};
     if (enabled !== undefined) data.enabled = Boolean(enabled);
@@ -269,6 +285,9 @@ router.put('/config', async (req, res, next) => {
     if (baseCurrency !== undefined) data.baseCurrency = baseCurrency;
     if (pickerPosition !== undefined) data.pickerPosition = pickerPosition;
     if (pickerColor !== undefined) data.pickerColor = pickerColor;
+    if (pickerSize !== undefined) data.pickerSize = pickerSize;
+    if (pickerBgColor !== undefined) data.pickerBgColor = pickerBgColor;
+    if (pickerBorderRadius !== undefined) data.pickerBorderRadius = pickerBorderRadius;
 
     const config = await prisma.storeTranslationConfig.upsert({
       where: { storeId: req.store.id },

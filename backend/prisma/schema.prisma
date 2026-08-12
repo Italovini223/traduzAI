@@ -264,7 +264,10 @@ model StoreTranslationConfig {
   sourceLanguage String   @default("pt-BR") // idioma original do conteúdo da loja
   baseCurrency   String   @default("BRL") // moeda original dos preços
   pickerPosition String   @default("bottom-left") // posição do seletor de bandeiras na vitrine
-  pickerColor    String   @default("#1a73e8") // cor de destaque do seletor de bandeiras
+  pickerColor    String   @default("#1a73e8") // cor de destaque (halo) do dropdown do seletor
+  pickerSize     String   @default("medium") // "small" | "medium" | "large" — porte do botão/painel
+  pickerBgColor  String   @default("#ffffff") // cor de fundo do botão trigger do seletor
+  pickerBorderRadius Int  @default(8) // px, 0 (quadrado) a 24 (pílula) — raio do botão/painel
   scriptId       String?  // id retornado pela Nuvemshop Script API
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

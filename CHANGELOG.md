@@ -6,6 +6,18 @@ versionado em [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.9.7] - 2026-08-12
+
+### Adicionado
+
+- **Novos controles de aparência do seletor de bandeiras**: tamanho (`pickerSize`: pequeno/médio/grande), cor de fundo do botão (`pickerBgColor`) e arredondamento de borda (`pickerBorderRadius`, 0-24px) — novos campos em `StoreTranslationConfig`, editáveis em Settings.jsx, consumidos por `GET /storefront/rules` e aplicados de verdade em `widget.js#buildCountryPicker`.
+
+### Corrigido
+
+- **Preview do seletor de bandeiras em Settings.jsx não refletia o componente real da vitrine** — era um círculo genérico com texto fixo "BR"; agora reproduz a pílula com bandeira real (flagcdn), chevron e um mini-painel de exemplo mostrando o halo de destaque (`pickerColor`), igual ao widget de produção.
+
+---
+
 ## [1.9.6] - 2026-07-30
 
 ### Adicionado

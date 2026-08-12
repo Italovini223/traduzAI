@@ -75,6 +75,9 @@ router.get('/rules', async (req, res, next) => {
       home,
       pickerPosition: config.pickerPosition,
       pickerColor: config.pickerColor,
+      pickerSize: config.pickerSize,
+      pickerBgColor: config.pickerBgColor,
+      pickerBorderRadius: config.pickerBorderRadius,
     });
   } catch (err) {
     next(err);

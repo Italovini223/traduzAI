@@ -8,12 +8,27 @@ import BannerOverrides from '../components/BannerOverrides.jsx';
 import CountryGlossary from '../components/CountryGlossary.jsx';
 import SeoPreview from '../components/SeoPreview.jsx';
 
+// Mesmos valores do widget real (backend/public/widget.js#PICKER_POSITION_CSS /
+// #PICKER_SIZE_CSS) — copiados manualmente aqui pra o preview ficar fiel ao
+// componente de verdade da vitrine (sem bundler compartilhado entre os dois).
 const PICKER_PREVIEW_POSITION = {
-  'bottom-left': { bottom: '10px', left: '10px' },
-  'bottom-right': { bottom: '10px', right: '10px' },
-  'top-left': { top: '10px', left: '10px' },
-  'top-right': { top: '10px', right: '10px' },
+  'bottom-left': { bottom: '16px', left: '16px' },
+  'bottom-right': { bottom: '16px', right: '16px' },
+  'top-left': { top: '16px', left: '16px' },
+  'top-right': { top: '16px', right: '16px' },
 };
+
+const PICKER_PREVIEW_SIZE = {
+  small: { padding: '4px 8px', gap: '4px', flagW: '16px', flagH: '12px', chevron: '9px', rowFont: '12px' },
+  medium: { padding: '6px 10px', gap: '6px', flagW: '20px', flagH: '15px', chevron: '10px', rowFont: '13px' },
+  large: { padding: '8px 14px', gap: '8px', flagW: '24px', flagH: '18px', chevron: '12px', rowFont: '14px' },
+};
+
+function hexToRgba(hex, alpha) {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
+  if (!m) return `rgba(26,115,232,${alpha})`;
+  return `rgba(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)},${alpha})`;
+}
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -27,6 +42,9 @@ export default function Settings() {
     baseCurrency: 'BRL',
     pickerPosition: 'bottom-left',
     pickerColor: '#1a73e8',
+    pickerSize: 'medium',
+    pickerBgColor: '#ffffff',
+    pickerBorderRadius: 8,
   });
   const [savedConfig, setSavedConfig] = useState(config);
   const [rules, setRules] = useState([]);
@@ -168,6 +186,9 @@ export default function Settings() {
       const res = await api.put('/api/translations/config', {
         pickerPosition: config.pickerPosition,
         pickerColor: config.pickerColor,
+        pickerSize: config.pickerSize,
+        pickerBgColor: config.pickerBgColor,
+        pickerBorderRadius: config.pickerBorderRadius,
       });
       setConfig(res.data.config);
       setSavedConfig(res.data.config);
@@ -330,7 +351,11 @@ export default function Settings() {
 
   const initialLoading = loadingOptions || loadingConfig || loadingOverrides || loadingBannerOverrides || loadingGlossary;
   const isSourceDirty = config.sourceLanguage !== savedConfig.sourceLanguage || config.baseCurrency !== savedConfig.baseCurrency;
-  const isAppearanceDirty = config.pickerPosition !== savedConfig.pickerPosition || config.pickerColor !== savedConfig.pickerColor;
+  const isAppearanceDirty = config.pickerPosition !== savedConfig.pickerPosition
+    || config.pickerColor !== savedConfig.pickerColor
+    || config.pickerSize !== savedConfig.pickerSize
+    || config.pickerBgColor !== savedConfig.pickerBgColor
+    || config.pickerBorderRadius !== savedConfig.pickerBorderRadius;
 
   if (initialLoading) {
     return (
@@ -481,6 +506,24 @@ export default function Settings() {
                         </Select.Option>
                       </Select>
                     </Box>
+                    <Box display="flex" flexDirection="column" gap="1" minWidth="160px">
+                      <Text>{t('translations.pickerSize')}</Text>
+                      <Select
+                        name="pickerSize"
+                        value={config.pickerSize}
+                        onChange={(e) => setConfig((prev) => ({ ...prev, pickerSize: e.target.value }))}
+                      >
+                        <Select.Option value="small" label={t('translations.pickerSizeSmall')}>
+                          {t('translations.pickerSizeSmall')}
+                        </Select.Option>
+                        <Select.Option value="medium" label={t('translations.pickerSizeMedium')}>
+                          {t('translations.pickerSizeMedium')}
+                        </Select.Option>
+                        <Select.Option value="large" label={t('translations.pickerSizeLarge')}>
+                          {t('translations.pickerSizeLarge')}
+                        </Select.Option>
+                      </Select>
+                    </Box>
                     <Box display="flex" flexDirection="column" gap="1">
                       <Text>{t('translations.pickerColor')}</Text>
                       <input
@@ -488,6 +531,26 @@ export default function Settings() {
                         value={config.pickerColor}
                         onChange={(e) => setConfig((prev) => ({ ...prev, pickerColor: e.target.value }))}
                         style={{ width: '48px', height: '36px', padding: 0, border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </Box>
+                    <Box display="flex" flexDirection="column" gap="1">
+                      <Text>{t('translations.pickerBgColor')}</Text>
+                      <input
+                        type="color"
+                        value={config.pickerBgColor}
+                        onChange={(e) => setConfig((prev) => ({ ...prev, pickerBgColor: e.target.value }))}
+                        style={{ width: '48px', height: '36px', padding: 0, border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </Box>
+                    <Box display="flex" flexDirection="column" gap="1" minWidth="160px">
+                      <Text>{t('translations.pickerBorderRadius')} ({config.pickerBorderRadius}px)</Text>
+                      <input
+                        type="range"
+                        min="0"
+                        max="24"
+                        value={config.pickerBorderRadius}
+                        onChange={(e) => setConfig((prev) => ({ ...prev, pickerBorderRadius: Number(e.target.value) }))}
+                        style={{ width: '160px' }}
                       />
                     </Box>
                     <Box display="flex" alignItems="flex-end" gap="2">
@@ -512,22 +575,58 @@ export default function Settings() {
                         overflow: 'hidden',
                       }}
                     >
-                      <div
-                        style={{
-                          position: 'absolute',
-                          ...PICKER_PREVIEW_POSITION[config.pickerPosition],
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '50%',
-                          backgroundColor: config.pickerColor,
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
-                        }}
-                      >
-                        <span style={{ color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>{t('translations.previewButtonLabel')}</span>
-                      </div>
+                      {(() => {
+                        const sizeCss = PICKER_PREVIEW_SIZE[config.pickerSize] || PICKER_PREVIEW_SIZE.medium;
+                        const opensDown = config.pickerPosition.indexOf('top') === 0;
+                        const alignRight = config.pickerPosition.indexOf('right') !== -1;
+                        return (
+                          <div style={{ position: 'absolute', ...PICKER_PREVIEW_POSITION[config.pickerPosition] }}>
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: sizeCss.gap,
+                                width: 'fit-content',
+                                backgroundColor: config.pickerBgColor,
+                                padding: sizeCss.padding,
+                                borderRadius: `${config.pickerBorderRadius}px`,
+                                boxShadow: '0 2px 8px rgba(0,0,0,.2)',
+                              }}
+                            >
+                              <img
+                                src="https://flagcdn.com/48x36/br.png"
+                                alt="BR"
+                                style={{ width: sizeCss.flagW, height: sizeCss.flagH, display: 'block', borderRadius: '2px' }}
+                              />
+                              <span style={{ fontSize: sizeCss.chevron, color: '#666', lineHeight: 1 }}>▾</span>
+                            </div>
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                marginTop: opensDown ? '6px' : undefined,
+                                marginBottom: opensDown ? undefined : '6px',
+                                order: opensDown ? 1 : -1,
+                                alignItems: alignRight ? 'flex-end' : 'flex-start',
+                                backgroundColor: '#fff',
+                                borderRadius: `${config.pickerBorderRadius}px`,
+                                boxShadow: '0 4px 16px rgba(0,0,0,.25)',
+                                minWidth: '150px',
+                                padding: '4px',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '6px', fontSize: sizeCss.rowFont, color: '#222' }}>
+                                <img src="https://flagcdn.com/48x36/br.png" alt="BR" style={{ width: sizeCss.flagW, height: sizeCss.flagH, display: 'block', borderRadius: '2px' }} />
+                                <span>{t('translations.previewHomeRowLabel')}</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '6px', fontSize: sizeCss.rowFont, color: '#222', backgroundColor: hexToRgba(config.pickerColor, 0.12) }}>
+                                <img src="https://flagcdn.com/48x36/us.png" alt="US" style={{ width: sizeCss.flagW, height: sizeCss.flagH, display: 'block', borderRadius: '2px' }} />
+                                <span>English (US)</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </Box>
                 </Box>

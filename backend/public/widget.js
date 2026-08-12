@@ -841,11 +841,11 @@
   }
 
   // ─── Seletor manual de país (dropdown) — fallback do geoip por IP ─────────
-  function makeFlagImg(code) {
+  function makeFlagImg(code, dims) {
     var img = document.createElement('img');
-    img.src = 'https://flagcdn.com/28x21/' + code.toLowerCase() + '.png';
+    img.src = 'https://flagcdn.com/48x36/' + code.toLowerCase() + '.png'; // bucket fixo — CSS faz o downscale por preset
     img.alt = code;
-    img.style.cssText = 'width:20px;height:15px;display:block;border-radius:2px;flex:none;';
+    img.style.cssText = 'width:' + (dims ? dims.w : '20px') + ';height:' + (dims ? dims.h : '15px') + ';display:block;border-radius:2px;flex:none;';
     return img;
   }
 
@@ -864,6 +864,12 @@
     'top-right': 'top:16px;right:16px;',
   };
 
+  var PICKER_SIZE_CSS = {
+    small: { padding: '4px 8px', gap: '4px', flag: { w: '16px', h: '12px' }, chevron: '9px', rowFont: '12px', panelWidth: '150px' },
+    medium: { padding: '6px 10px', gap: '6px', flag: { w: '20px', h: '15px' }, chevron: '10px', rowFont: '13px', panelWidth: '170px' },
+    large: { padding: '8px 14px', gap: '8px', flag: { w: '24px', h: '18px' }, chevron: '12px', rowFont: '14px', panelWidth: '190px' },
+  };
+
   // Ponte entre a deteccao automatica por geoip (init) e o seletor de
   // bandeiras (buildCountryPicker) — os dois buscam dados em paralelo
   // (/storefront/config e /storefront/rules), sem ordem garantida. Sem essa
@@ -877,6 +883,9 @@
     if ((!countries || countries.length === 0) && !home) return;
 
     var color = (appearance && appearance.color) || '#1a73e8';
+    var bgColor = (appearance && appearance.bgColor) || '#fff';
+    var borderRadius = (appearance && appearance.borderRadius != null) ? appearance.borderRadius : 8;
+    var sizeCss = PICKER_SIZE_CSS[(appearance && appearance.size)] || PICKER_SIZE_CSS.medium;
     var positionKey = (appearance && appearance.position) || 'bottom-left';
     var positionCss = PICKER_POSITION_CSS[positionKey] || PICKER_POSITION_CSS['bottom-left'];
     var opensDown = positionKey.indexOf('top') === 0; // painel abre pro lado livre da tela
@@ -891,15 +900,15 @@
 
     var trigger = document.createElement('button');
     trigger.type = 'button';
-    trigger.style.cssText = 'display:flex;align-items:center;gap:6px;background:#fff;border:none;' +
-      'padding:6px 10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.2);cursor:pointer;';
+    trigger.style.cssText = 'display:flex;align-items:center;gap:' + sizeCss.gap + ';background:' + bgColor + ';border:none;' +
+      'padding:' + sizeCss.padding + ';border-radius:' + borderRadius + 'px;box-shadow:0 2px 8px rgba(0,0,0,.2);cursor:pointer;';
 
-    var triggerFlag = makeFlagImg('un'); // placeholder até highlight() setar a bandeira real
+    var triggerFlag = makeFlagImg('un', sizeCss.flag); // placeholder até highlight() setar a bandeira real
     trigger.appendChild(triggerFlag);
 
     var chevron = document.createElement('span');
     chevron.textContent = '▾';
-    chevron.style.cssText = 'font-size:10px;color:#666;line-height:1;transition:transform .15s;flex:none;';
+    chevron.style.cssText = 'font-size:' + sizeCss.chevron + ';color:#666;line-height:1;transition:transform .15s;flex:none;';
     trigger.appendChild(chevron);
 
     PICKER_SPINNER_EL = makeSpinner();
@@ -909,8 +918,8 @@
     var panel = document.createElement('div');
     panel.style.cssText = 'position:absolute;' + (opensDown ? 'top:calc(100% + 6px);' : 'bottom:calc(100% + 6px);') +
       (positionKey.indexOf('right') !== -1 ? 'right:0;' : 'left:0;') +
-      'display:none;flex-direction:column;background:#fff;border-radius:8px;' +
-      'box-shadow:0 4px 16px rgba(0,0,0,.25);min-width:170px;max-height:260px;overflow-y:auto;padding:4px;';
+      'display:none;flex-direction:column;background:#fff;border-radius:' + borderRadius + 'px;' +
+      'box-shadow:0 4px 16px rgba(0,0,0,.25);min-width:' + sizeCss.panelWidth + ';max-height:260px;overflow-y:auto;padding:4px;';
 
     function setOpen(open) {
       isOpen = open;
@@ -936,7 +945,7 @@
     function highlight(code) {
       activeCode = code;
       var entry = rows[code === null ? '__home__' : code];
-      if (entry) triggerFlag.src = 'https://flagcdn.com/28x21/' + entry.flagCode.toLowerCase() + '.png';
+      if (entry) triggerFlag.src = 'https://flagcdn.com/48x36/' + entry.flagCode.toLowerCase() + '.png';
       setRowActiveStyles();
     }
 
@@ -970,8 +979,8 @@
       row.title = label;
       row.style.cssText = 'display:flex;align-items:center;gap:8px;width:100%;border:none;' +
         'background:none;padding:6px 8px;border-radius:6px;cursor:pointer;text-align:left;' +
-        'font-size:13px;color:#222;white-space:nowrap;';
-      row.appendChild(makeFlagImg(flagCode));
+        'font-size:' + sizeCss.rowFont + ';color:#222;white-space:nowrap;';
+      row.appendChild(makeFlagImg(flagCode, sizeCss.flag));
       var text = document.createElement('span');
       text.textContent = label;
       text.style.cssText = 'overflow:hidden;text-overflow:ellipsis;';
@@ -986,9 +995,9 @@
       var homeRow = makeRow('__home__', home.code, home.name + ' (idioma original da loja)');
       homeRow.addEventListener('click', goHome);
       rows['__home__'] = { row: homeRow, code: null, flagCode: home.code };
-      triggerFlag.src = 'https://flagcdn.com/28x21/' + home.code.toLowerCase() + '.png';
+      triggerFlag.src = 'https://flagcdn.com/48x36/' + home.code.toLowerCase() + '.png';
     } else if (countries.length > 0) {
-      triggerFlag.src = 'https://flagcdn.com/28x21/' + countries[0].code.toLowerCase() + '.png';
+      triggerFlag.src = 'https://flagcdn.com/48x36/' + countries[0].code.toLowerCase() + '.png';
     }
 
     countries.forEach(function (c) {
@@ -1034,6 +1043,9 @@
         buildCountryPicker((data && data.countries) || [], effectiveInitial, data && data.home, {
           position: data && data.pickerPosition,
           color: data && data.pickerColor,
+          size: data && data.pickerSize,
+          bgColor: data && data.pickerBgColor,
+          borderRadius: data && data.pickerBorderRadius,
         });
         injectHreflangTags((data && data.countries) || [], data && data.home);
       })
